@@ -23,7 +23,7 @@ class Program
         {
             sim.StepForward(1000);
 
-            Vector3 r = (Vector3)sim.State["r"];
+            Vector3 r = sim.State.r;
 
             simX.Add(r.X);
             simY.Add(r.Y);

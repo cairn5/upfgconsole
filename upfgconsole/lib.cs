@@ -11,37 +11,30 @@ public class Simulator
     public Vehicle Veh { get; set; }
     public Environment Env { get; set; }
     public Dictionary<string, object> Mission { get; private set; }
-    public Dictionary<string, object> State { get; private set; }
-    public Dictionary<string, object> Iteration { get; private set; }
+    public SimState State { get; private set; }
+    public Dictionary<string, Vector3> Iteration { get; private set; }
     public float dt { get; private set; }
     public Vector3 ThrustVector { get; private set; }
-    public Dictionary<string, List<Vector3>> History { get; private set; }
-    public List<float> TimeHistory { get; private set; }
-    public List<float> MassHistory { get; private set; }
+    public List<SimState> History { get; set; }
+
 
     public Simulator()
     {
         Veh = null;
         Env = null;
         Mission = null;
-        State = new Dictionary<string, object>();
-        Iteration = new Dictionary<string, object>();
+        State = new SimState();
+        Iteration = new Dictionary<string, Vector3>();
         dt = 1;
         ThrustVector = new Vector3(0, 0, 0);
 
-        History = new Dictionary<string, List<Vector3>>
-        {
-            { "r", new List<Vector3>() },
-            { "v", new List<Vector3>() }
-        };
+        History = new List<SimState>();
 
-        TimeHistory = new List<float>();
-        MassHistory = new List<float>();
     }
 
 
 
-    public Dictionary<string, object> GetVesselState()
+    public SimState GetVesselState()
     {
         return State;
     }
@@ -51,12 +44,16 @@ public class Simulator
 
         double radFpa = fpa * Math.PI / 180.0;
 
-        State = new Dictionary<string, object>
-        {
-            { "r", new Vector3(0, (float)(Constants.Re + altitude * 1000.0), 0) },
-            { "v", new Vector3((float)(velocity * Math.Cos(radFpa)), (float)(velocity * Math.Sin(radFpa)), 0) },
-            { "t", (float)0.0 }
-        };
+        State.r = new Vector3(0, (float)(Constants.Re + altitude * 1000.0), 0);
+        State.v = new Vector3((float)(velocity * Math.Cos(radFpa)), (float)(velocity * Math.Sin(radFpa)), 0);
+        State.t = 0;
+
+        // State = new Dictionary<string, object>
+        // {
+        //     { "r", new Vector3(0, (float)(Constants.Re + altitude * 1000.0), 0) },
+        //     { "v", new Vector3((float)(velocity * Math.Cos(radFpa)), (float)(velocity * Math.Sin(radFpa)), 0) },
+        //     { "t", (float)0.0 }
+        // };
 
     }
 
@@ -72,35 +69,32 @@ public class Simulator
 
     private void CalcAccel(float mass)
     {
-        Vector3 r21 = (Vector3)State["r"];
+        Vector3 r21 = State.r;
         Iteration["a"] = Constants.Mu * -r21 / (float)Math.Pow(r21.Length(), 3);
-                         //+ ThrustVector / mass;
+        //+ ThrustVector / mass;
 
     }
 
     private void CalcVel()
     {
-        Iteration["v"] = (Vector3)State["v"] + (Vector3)Iteration["a"] * dt;
+        Iteration["v"] = State.v + (Vector3)Iteration["a"] * dt;
     }
 
     private void CalcPos()
     {
-        Iteration["r"] = (Vector3)State["r"] + (Vector3)Iteration["v"] * dt;
+        Iteration["r"] = State.r + (Vector3)Iteration["v"] * dt;
     }
 
     private void UpdateStateHistory()
     {
 
-        History["r"].Add((Vector3)State["r"]);
-        History["v"].Add((Vector3)State["v"]);
-        TimeHistory.Add((float)State["t"]);
+        History.Add(State);
+        
 
-        State = new Dictionary<string, object>
-        {
-            { "r", Iteration["r"] },
-            { "v", Iteration["v"] },
-            { "t", (float)State["t"] + dt }
-        };
+        State.r = Iteration["r"];
+        State.v = Iteration["v"];
+        State.t = State.t + dt;
+
     }
 
     public void StepForward(float mass)
@@ -112,6 +106,19 @@ public class Simulator
 
     }
 
+}
+
+public class SimState
+{
+    public Vector3 r{ get; set; }
+    public Vector3 v{ get; set; }
+    public float t{ get; set; }     
+    
+}
+
+public class SimHistory
+{
+    public List<SimState> r { get; set; } = new List<SimState>();
 }
 
 public static class Constants
