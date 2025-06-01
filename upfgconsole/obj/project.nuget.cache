@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "dgSpecHash": "8QO7KyN97KYs1NUO81Hox31/MgJEUmaqNkpkYK4o9RFHu76wrgoJtAlZmwo8f+4766hLvOkhr/at2qLJ1Cm1EQ==",
+  "success": true,
+  "projectFilePath": "/home/oli/code/csharp/upfgconsole/upfgconsole/upfgconsole.csproj",
+  "expectedPackageFiles": [
+    "/home/oli/.nuget/packages/harfbuzzsharp/7.3.0.3/harfbuzzsharp.7.3.0.3.nupkg.sha512",
+    "/home/oli/.nuget/packages/harfbuzzsharp.nativeassets.linux/7.3.0.3/harfbuzzsharp.nativeassets.linux.7.3.0.3.nupkg.sha512",
+    "/home/oli/.nuget/packages/harfbuzzsharp.nativeassets.macos/7.3.0.3/harfbuzzsharp.nativeassets.macos.7.3.0.3.nupkg.sha512",
+    "/home/oli/.nuget/packages/harfbuzzsharp.nativeassets.win32/7.3.0.3/harfbuzzsharp.nativeassets.win32.7.3.0.3.nupkg.sha512",
+    "/home/oli/.nuget/packages/scottplot/5.0.55/scottplot.5.0.55.nupkg.sha512",
+    "/home/oli/.nuget/packages/skiasharp/2.88.9/skiasharp.2.88.9.nupkg.sha512",
+    "/home/oli/.nuget/packages/skiasharp.harfbuzz/2.88.9/skiasharp.harfbuzz.2.88.9.nupkg.sha512",
+    "/home/oli/.nuget/packages/skiasharp.nativeassets.linux.nodependencies/2.88.9/skiasharp.nativeassets.linux.nodependencies.2.88.9.nupkg.sha512",
+    "/home/oli/.nuget/packages/skiasharp.nativeassets.macos/2.88.9/skiasharp.nativeassets.macos.2.88.9.nupkg.sha512",
+    "/home/oli/.nuget/packages/skiasharp.nativeassets.win32/2.88.9/skiasharp.nativeassets.win32.2.88.9.nupkg.sha512"
+  ],
+  "logs": []
+}
