@@ -5,17 +5,33 @@ using System.Numerics;
 using System.Security;
 using ScottPlot.LayoutEngines;
 using lib;
+using System.Reflection;
 
-class Program
+class Handler
 {
     static void Main()
     {
         Console.WriteLine("Hello, World!");
 
         Simulator sim = new Simulator();
+        sim.SetVesselStateFromMidair(20, 2000, 45);
 
-        sim.SetVesselStateFromMidair(70, 8000, 0);
 
+        Target tgt = new Target();
+
+        Dictionary<string, float> desOrbit = new Dictionary<string, float>{
+            {"pe", 200 },
+            {"ap", 200},
+            {"inc", 45}
+        };
+
+        tgt.SetTarget(desOrbit, sim);
+
+        Upfg guidance = new Upfg();
+
+        guidance.SetupUpfg(sim, tgt);
+
+        
         List<float> simX = new List<float>();
         List<float> simY = new List<float>();
 
@@ -35,10 +51,11 @@ class Program
         myPlot.Add.Scatter(simX, simY);
         myPlot.SavePng("test.png", 400, 300);
 
-        Dictionary<string, double> kepler = Utils.CartToKepler(sim.State);
+        Dictionary<string, double> kepler = sim.State.Kepler;
 
         Utils.PlotOrbit(kepler);
     }
+
 
 
 }

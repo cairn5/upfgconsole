@@ -3,10 +3,13 @@ namespace lib;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO.Compression;
+using System.Net.Mail;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Security;
 using ScottPlot.LayoutEngines;
+using ScottPlot.Rendering.RenderActions;
 
 public class Simulator
 {
@@ -26,6 +29,8 @@ public class Simulator
         Env = null;
         Mission = null;
         State = new SimState();
+        State.CalcMiscParams();
+        State.CartToKepler();
         Iteration = new Dictionary<string, Vector3>();
         dt = 1;
         ThrustVector = new Vector3(0, 0, 0);
@@ -72,7 +77,7 @@ public class Simulator
     private void CalcAccel(float mass)
     {
         Vector3 r21 = State.r;
-        Iteration["a"] = Constants.Mu * -r21 / (float)Math.Pow(r21.Length(), 3);
+        Iteration["a"] = Utils.CalcGravVector(Constants.Mu, r21);
         //+ ThrustVector / mass;
 
     }
@@ -91,11 +96,13 @@ public class Simulator
     {
 
         History.Add(State);
-        
+
 
         State.r = Iteration["r"];
         State.v = Iteration["v"];
         State.t = State.t + dt;
+        State.CartToKepler();
+        State.CalcMiscParams();
 
     }
 
@@ -110,46 +117,68 @@ public class Simulator
 
 }
 
-public class SimState
+public class Target
 {
-    public Vector3 r{ get; set; }
-    public Vector3 v{ get; set; }
-    public float t{ get; set; }     
-    
-}
+    public float radius { get; private set; } = 0;
+    public float velocity { get; private set; } = 0;
+    public float fpa { get; private set; } = 0;
+    public Vector3 normal { get; private set; } = new Vector3(0, 0, 0);
+    public float inc { get; private set; } = 0;
+    public float LAN { get; private set; } = 0;
 
-public class SimHistory
-{
-    public List<SimState> r { get; set; } = new List<SimState>();
-}
-
-public static class Constants
-{
-    public static float Re = 6371000;  // Example Earth radius in meters, replace with actual value
-    public static float Mu = 3.986e14F;
-}
-
-public static class Utils
-{
-    public static Vector3 RodriguesRotation(Vector3 vin, Vector3 axis, double angle)
+    public void SetTarget(Dictionary<string, float> targetParams, Simulator sim)
     {
-        Vector3 vout;
+        SimState state = sim.State;
 
-        double angleRad = DegToRad(angle);
-        double cosAngle = Math.Cos(angleRad);
-        double sinAngle = Math.Sin(angleRad);
+        float pe = targetParams["pe"] * 1000 + Constants.Re;
+        float ap = targetParams["ap"] * 1000 + Constants.Re;
 
-        vout = vin * (float)cosAngle
-            + Vector3.Cross(axis, vin) * (float)sinAngle
-            + axis * Vector3.Dot(axis, vin) * (float)(1 - cosAngle);
+        radius = pe;
+        float sma = (pe + ap) / 2;
+        float vpe = (float)Math.Pow(Constants.Mu * (2 / pe - 1 / sma), 0.5);
+        velocity = vpe;
+        float srm = pe * vpe;
+        fpa = (float)Math.Acos(srm / srm);
 
-        return vout;
+        inc = targetParams["inc"];
+
+        if (targetParams.ContainsKey("LAN"))
+        {
+            LAN = targetParams["LAN"];
+        }
+        else
+        {
+            LAN = (float)(state.Misc["longitude"] - Math.Asin(Math.Tan(Math.PI/2 - Utils.DegToRad(inc)) * Math.Tan(state.Misc["latitude"])));
+        }
+
+        normal = Utils.CalcOrbitNormal(inc, LAN);
+
     }
 
-    public static Dictionary<string, double> CartToKepler(SimState state)
+}
+
+public class SimState
+{
+    public Vector3 r { get; set; } = new Vector3(0, 0, 0);
+    public Vector3 v { get; set; } = new Vector3(0, 0, 0);
+    public float t { get; set; } = 0;
+    public Dictionary<string, double> Kepler { get; set; } = new Dictionary<string, double> { };
+    public Dictionary<string, double> Misc { get; set; } = new Dictionary<string, double> { };
+
+    public void CalcMiscParams()
     {
-        Vector3 r = state.r;
-        Vector3 rdot = state.v;
+        Misc = new Dictionary<string, double>
+        {
+            {"longitude", Math.Atan2(r.Y, r.X)},
+            {"latitude", Math.Atan2(r.Z, Math.Pow(r.X * r.X + r.Y * r.Y, 0.5))},
+            {"altitude", Math.Pow(r.X * r.X + r.Y * r.Y + r.Z * r.Z, 0.5) - Constants.Re}
+        };
+    }
+
+    public void CartToKepler()
+    {
+        
+        Vector3 rdot = v;
 
         double mu = Constants.Mu;
 
@@ -165,14 +194,14 @@ public static class Utils
         double i = Math.Acos(h.Z / hMag);
 
         // True anomaly
-        double v = Math.Acos(Vector3.Dot(eVec, r) / (eMag * r.Length()));
+        double v_ = Math.Acos(Vector3.Dot(eVec, r) / (eMag * r.Length()));
         if (Vector3.Dot(r, rdot) < 0)
         {
-            v = 2 * Math.PI - v;
+            v_ = 2 * Math.PI - v_;
         }
 
         // Eccentric anomaly
-        double tan_v2 = Math.Tan(v / 2);
+        double tan_v2 = Math.Tan(v_ / 2);
         double E = 2 * Math.Atan2(tan_v2 * Math.Sqrt(1 - eMag), Math.Sqrt(1 + eMag));
 
         // RAAN (Longitude of Ascending Node)
@@ -203,17 +232,67 @@ public static class Utils
         // Semi-major axis
         double a = 1 / ((2 / r.Length()) - (Vector3.Dot(rdot, rdot) / mu));
 
-        return new Dictionary<string, double>
+        Kepler = new Dictionary<string, double>
         {
             { "a", a },
             { "e", eMag },
-            { "omega", RadToDeg(omega) },
-            { "LAN", RadToDeg(LAN) },
-            { "i", RadToDeg(i) },
-            { "M", RadToDeg(M) }
+            { "omega", Utils.RadToDeg(omega) },
+            { "LAN", Utils.RadToDeg(LAN) },
+            { "i", Utils.RadToDeg(i) },
+            { "M", Utils.RadToDeg(M) }
 
         };
     }
+
+}
+
+// public class SimHistory
+// {
+//     public List<SimState> r { get; set; } = new List<SimState>();
+// }
+
+public static class Constants
+{
+    public static float Re = 6371000;  // Example Earth radius in meters, replace with actual value
+    public static float Mu = 3.986e14F;
+}
+
+public static class Utils
+{
+    public static Vector3 CalcOrbitNormal(float inc, float omega)
+    {
+        inc = (float)DegToRad(inc); omega = (float)DegToRad(omega);
+
+        Vector3 vout = new Vector3(0, 0, 1);
+        vout.X = (float)(Math.Sin(inc) * Math.Sin(omega));
+        vout.Y = (float)(-Math.Sin(inc) * Math.Cos(omega));
+        vout.Z = (float)Math.Cos(inc);
+
+        return vout;
+
+    }
+    public static Vector3 CalcGravVector(float mu, Vector3 r21)
+    {
+        Vector3 a = Constants.Mu * -r21 / (float)Math.Pow(r21.Length(), 3);
+
+        return a;
+    }
+    public static Vector3 RodriguesRotation(Vector3 vin, Vector3 axis, double angle)
+    {
+        Vector3 vout;
+
+        double angleRad = DegToRad(angle);
+        double cosAngle = Math.Cos(angleRad);
+        double sinAngle = Math.Sin(angleRad);
+
+        vout = vin * (float)cosAngle
+            + Vector3.Cross(axis, vin) * (float)sinAngle
+            + axis * Vector3.Dot(axis, vin) * (float)(1 - cosAngle);
+
+        return vout;
+    }
+
+    
 
     public static double DegToRad(double degrees)
     {
