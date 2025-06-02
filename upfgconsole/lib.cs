@@ -2,7 +2,9 @@ namespace lib;
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Security;
 using ScottPlot.LayoutEngines;
 
@@ -129,9 +131,107 @@ public static class Constants
 
 public static class Utils
 {
+    public static Vector3 RodriguesRotation(Vector3 vin, Vector3 axis, double angle)
+    {
+        Vector3 vout;
+
+        double angleRad = DegToRad(angle);
+        double cosAngle = Math.Cos(angleRad);
+        double sinAngle = Math.Sin(angleRad);
+
+        vout = vin * (float)cosAngle
+            + Vector3.Cross(axis, vin) * (float)sinAngle
+            + axis * Vector3.Dot(axis, vin) * (float)(1 - cosAngle);
+
+        return vout;
+    }
+
+    public static Dictionary<string, double> CartToKepler(SimState state)
+    {
+        Vector3 r = state.r;
+        Vector3 rdot = state.v;
+
+        double mu = Constants.Mu;
+
+        Vector3 h = Vector3.Cross(r, rdot);
+        double hMag = h.Length();
+
+        Vector3 eVec = Vector3.Cross(rdot, h) / Constants.Mu - r / r.Length();
+        double eMag = eVec.Length();
+
+        Vector3 n = Vector3.Cross(new Vector3(0, 0, 1), h);
+        double nMag = n.Length();
+
+        double i = Math.Acos(h.Z / hMag);
+
+        // True anomaly
+        double v = Math.Acos(Vector3.Dot(eVec, r) / (eMag * r.Length()));
+        if (Vector3.Dot(r, rdot) < 0)
+        {
+            v = 2 * Math.PI - v;
+        }
+
+        // Eccentric anomaly
+        double tan_v2 = Math.Tan(v / 2);
+        double E = 2 * Math.Atan2(tan_v2 * Math.Sqrt(1 - eMag), Math.Sqrt(1 + eMag));
+
+        // RAAN (Longitude of Ascending Node)
+        double LAN = Math.Acos(n.X / nMag);
+        if (n.Y < 0)
+        {
+            LAN = 2 * Math.PI - LAN;
+        }
+        if (nMag == 0)
+        {
+            LAN = 0;
+        }
+
+        // Argument of Periapsis
+        double omega = Math.Acos(Vector3.Dot(n, eVec) / (nMag * eMag));
+        if (eVec.Z < 0)
+        {
+            omega = 2 * Math.PI - omega;
+        }
+        if (nMag == 0)
+        {
+            omega = 0;
+        }
+
+        // Mean anomaly
+        double M = E - eMag * Math.Sin(E);
+
+        // Semi-major axis
+        double a = 1 / ((2 / r.Length()) - (Vector3.Dot(rdot, rdot) / mu));
+
+        return new Dictionary<string, double>
+        {
+            { "a", a },
+            { "e", eMag },
+            { "omega", RadToDeg(omega) },
+            { "LAN", RadToDeg(LAN) },
+            { "i", RadToDeg(i) },
+            { "M", RadToDeg(M) }
+
+        };
+    }
+
+    public static double DegToRad(double degrees)
+    {
+        double rad = degrees * Math.PI / 180.0;
+
+        return rad;
+    }
+    
+    public static double RadToDeg(double rad)
+    {
+        double degrees = rad * Math.PI / 180.0;
+
+        return degrees;
+    }
+
     public static void PlotOrbit(Dictionary<string, double> elements)
     {
-        double DegToRad(double degrees) => degrees * Math.PI / 180.0;
+        // double DegToRad(double degrees) => degrees * Math.PI / 180.0;
 
         // Convert degrees to radians
         double omega = DegToRad(elements["omega"]);
@@ -209,7 +309,7 @@ public static class Utils
         XYplot.Add.Scatter(xp, yp);
         XYplot.Add.Scatter(xp, zp);
         XYplot.SavePng("XY.png", 400, 300);
-        
+
     }
 
     private static double[] Linspace(double start, double end, int num)

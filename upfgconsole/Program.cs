@@ -35,6 +35,9 @@ class Program
         myPlot.Add.Scatter(simX, simY);
         myPlot.SavePng("test.png", 400, 300);
 
+        Dictionary<string, double> kepler = Utils.CartToKepler(sim.State);
+
+        Utils.PlotOrbit(kepler);
     }
 
 
