@@ -5,6 +5,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "upfgconsole", "upfgconsole\upfgconsole.csproj", "{4842DF4E-15FF-4A4E-94DE-DBF570B49853}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "upfgconsole.Tests", "upfgconsole.Tests\upfgconsole.Tests.csproj", "{4561115A-5D88-4BF0-9F99-B0081AE9112E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +20,13 @@ Global
 		{4842DF4E-15FF-4A4E-94DE-DBF570B49853}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4842DF4E-15FF-4A4E-94DE-DBF570B49853}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4842DF4E-15FF-4A4E-94DE-DBF570B49853}.Release|Any CPU.Build.0 = Release|Any CPU
+		{76F2943E-1003-49C0-B090-CE8CB4424CCF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{76F2943E-1003-49C0-B090-CE8CB4424CCF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{76F2943E-1003-49C0-B090-CE8CB4424CCF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{76F2943E-1003-49C0-B090-CE8CB4424CCF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4561115A-5D88-4BF0-9F99-B0081AE9112E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4561115A-5D88-4BF0-9F99-B0081AE9112E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4561115A-5D88-4BF0-9F99-B0081AE9112E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4561115A-5D88-4BF0-9F99-B0081AE9112E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

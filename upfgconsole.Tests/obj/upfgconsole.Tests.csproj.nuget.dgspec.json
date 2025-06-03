@@ -1,0 +1,154 @@
+{
+  "format": 1,
+  "restore": {
+    "/home/oli/code/csharp/upfgconsole/upfgconsole.Tests/upfgconsole.Tests.csproj": {}
+  },
+  "projects": {
+    "/home/oli/code/csharp/upfgconsole/upfgconsole.Tests/upfgconsole.Tests.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/oli/code/csharp/upfgconsole/upfgconsole.Tests/upfgconsole.Tests.csproj",
+        "projectName": "upfgconsole.Tests",
+        "projectPath": "/home/oli/code/csharp/upfgconsole/upfgconsole.Tests/upfgconsole.Tests.csproj",
+        "packagesPath": "/home/oli/.nuget/packages/",
+        "outputPath": "/home/oli/code/csharp/upfgconsole/upfgconsole.Tests/obj/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/oli/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "/home/oli/code/csharp/upfgconsole/upfgconsole/upfgconsole.csproj": {
+                "projectPath": "/home/oli/code/csharp/upfgconsole/upfgconsole/upfgconsole.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Microsoft.NET.Test.Sdk": {
+              "target": "Package",
+              "version": "[17.6.0, )"
+            },
+            "coverlet.collector": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[6.0.0, )"
+            },
+            "xunit": {
+              "target": "Package",
+              "version": "[2.9.3, )"
+            },
+            "xunit.runner.visualstudio": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[2.4.5, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/lib/dotnet/sdk/8.0.116/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "/home/oli/code/csharp/upfgconsole/upfgconsole/upfgconsole.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/oli/code/csharp/upfgconsole/upfgconsole/upfgconsole.csproj",
+        "projectName": "upfgconsole",
+        "projectPath": "/home/oli/code/csharp/upfgconsole/upfgconsole/upfgconsole.csproj",
+        "packagesPath": "/home/oli/.nuget/packages/",
+        "outputPath": "/home/oli/code/csharp/upfgconsole/upfgconsole/obj/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/oli/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Newtonsoft.Json": {
+              "target": "Package",
+              "version": "[13.0.3, )"
+            },
+            "ScottPlot": {
+              "target": "Package",
+              "version": "[5.0.55, )"
+            },
+            "Xunit": {
+              "target": "Package",
+              "version": "[2.9.3, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/lib/dotnet/sdk/8.0.116/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}

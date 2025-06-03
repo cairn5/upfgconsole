@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "8QO7KyN97KYs1NUO81Hox31/MgJEUmaqNkpkYK4o9RFHu76wrgoJtAlZmwo8f+4766hLvOkhr/at2qLJ1Cm1EQ==",
+  "dgSpecHash": "ip3mpYZrU8wfqXBZdGHc1jeerRqveTmffVrPoRS0AlFo8jEPCtCljdoG7J8igi7Mxs411b/c8ImhDHgEE8Fh2Q==",
   "success": true,
   "projectFilePath": "/home/oli/code/csharp/upfgconsole/upfgconsole/upfgconsole.csproj",
   "expectedPackageFiles": [
@@ -8,12 +8,20 @@
     "/home/oli/.nuget/packages/harfbuzzsharp.nativeassets.linux/7.3.0.3/harfbuzzsharp.nativeassets.linux.7.3.0.3.nupkg.sha512",
     "/home/oli/.nuget/packages/harfbuzzsharp.nativeassets.macos/7.3.0.3/harfbuzzsharp.nativeassets.macos.7.3.0.3.nupkg.sha512",
     "/home/oli/.nuget/packages/harfbuzzsharp.nativeassets.win32/7.3.0.3/harfbuzzsharp.nativeassets.win32.7.3.0.3.nupkg.sha512",
+    "/home/oli/.nuget/packages/newtonsoft.json/13.0.3/newtonsoft.json.13.0.3.nupkg.sha512",
     "/home/oli/.nuget/packages/scottplot/5.0.55/scottplot.5.0.55.nupkg.sha512",
     "/home/oli/.nuget/packages/skiasharp/2.88.9/skiasharp.2.88.9.nupkg.sha512",
     "/home/oli/.nuget/packages/skiasharp.harfbuzz/2.88.9/skiasharp.harfbuzz.2.88.9.nupkg.sha512",
     "/home/oli/.nuget/packages/skiasharp.nativeassets.linux.nodependencies/2.88.9/skiasharp.nativeassets.linux.nodependencies.2.88.9.nupkg.sha512",
     "/home/oli/.nuget/packages/skiasharp.nativeassets.macos/2.88.9/skiasharp.nativeassets.macos.2.88.9.nupkg.sha512",
-    "/home/oli/.nuget/packages/skiasharp.nativeassets.win32/2.88.9/skiasharp.nativeassets.win32.2.88.9.nupkg.sha512"
+    "/home/oli/.nuget/packages/skiasharp.nativeassets.win32/2.88.9/skiasharp.nativeassets.win32.2.88.9.nupkg.sha512",
+    "/home/oli/.nuget/packages/xunit/2.9.3/xunit.2.9.3.nupkg.sha512",
+    "/home/oli/.nuget/packages/xunit.abstractions/2.0.3/xunit.abstractions.2.0.3.nupkg.sha512",
+    "/home/oli/.nuget/packages/xunit.analyzers/1.18.0/xunit.analyzers.1.18.0.nupkg.sha512",
+    "/home/oli/.nuget/packages/xunit.assert/2.9.3/xunit.assert.2.9.3.nupkg.sha512",
+    "/home/oli/.nuget/packages/xunit.core/2.9.3/xunit.core.2.9.3.nupkg.sha512",
+    "/home/oli/.nuget/packages/xunit.extensibility.core/2.9.3/xunit.extensibility.core.2.9.3.nupkg.sha512",
+    "/home/oli/.nuget/packages/xunit.extensibility.execution/2.9.3/xunit.extensibility.execution.2.9.3.nupkg.sha512"
   ],
   "logs": []
 }
