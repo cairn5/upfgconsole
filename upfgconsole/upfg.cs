@@ -32,7 +32,7 @@ public class Upfg
         Vector3 unitvec = Utils.RodriguesRotation(curR, mission.normal, 20);
         Vector3 desR = unitvec / unitvec.Length() * mission.radius;
 
-        Vector3 tempvec = Vector3.Cross(-mission.normal, desR);
+        Vector3 tempvec = Vector3.Cross(mission.normal, desR);
         Vector3 tgoV = mission.velocity * (tempvec / tempvec.Length()) - curV;
 
         Dictionary<string, double> cser = new Dictionary<string, double>
@@ -50,7 +50,7 @@ public class Upfg
     public void Run(Simulator sim, Target mission, Vehicle vehicle)
     {
         double gamma = mission.fpa;
-        Vector3 iy = mission.normal;
+        Vector3 iy = -mission.normal;
         double rdval = mission.radius;
         double vdval = mission.velocity;
 

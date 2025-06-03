@@ -4,9 +4,9 @@
       "Id": 1,
       "Mode": 1,
       "GLim":100,
-      "MassTotal": 100000,
-      "PropellantMass": 80000,
-      "Thrust": 2000000,
+      "MassTotal": 40000,
+      "MassFuel": 39000,
+      "Thrust": 200000,
       "Isp": 300
     }
   ]

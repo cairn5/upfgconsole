@@ -80,12 +80,12 @@ public class Simulator
         dt = timestep;
     }
 
-    public void SetGuidance(Vector3 thrustvector)
+    public void SetGuidance(Vector3 thrustvector, Stage stage)
     {
-        ThrustVector = thrustvector;
+        ThrustVector = thrustvector * (float)stage.Thrust;
     }
 
-    private void CalcAccel(float mass)
+    private void CalcAccel()
     {
         Vector3 r21 = State.r;
         Iteration["a"] = Utils.CalcGravVector(Constants.Mu, r21)
@@ -118,9 +118,9 @@ public class Simulator
 
     }
 
-    public void StepForward(float mass)
+    public void StepForward()
     {
-        CalcAccel(mass);
+        CalcAccel();
         CalcVel();
         CalcPos();
         UpdateStateHistory();
@@ -362,7 +362,7 @@ public static class Utils
     
     public static double RadToDeg(double rad)
     {
-        double degrees = rad * Math.PI / 180.0;
+        double degrees = rad /( Math.PI / 180.0);
 
         return degrees;
     }

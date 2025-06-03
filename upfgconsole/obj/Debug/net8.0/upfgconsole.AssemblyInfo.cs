@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("upfgconsole")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4805544428eb8f4a7610b70d7dcc6c55b994f9b7")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+59c0d6a1e573520dc0aab9b89c4ab8cd9a9f42c0")]
 [assembly: System.Reflection.AssemblyProductAttribute("upfgconsole")]
 [assembly: System.Reflection.AssemblyTitleAttribute("upfgconsole")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
