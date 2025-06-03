@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -9,9 +10,11 @@ public class OrbitalMechanics
     public static double mu = 398600.4418e9; // Example for Earth (m^3/s^2)
 
     // Entry point function: CSEroutine
-    public static (double[] r, double[] v, Dictionary<string, object> last) CSEroutine(double[] r0, double[] v0, double dt, Dictionary<string, object> last)
+        public static (Vector3 r, Vector3 v, Dictionary<string, double> last) CSEroutine(
+        Vector3 r0, Vector3 v0, double dt, Dictionary<string, double> last)
     {
-        double dtcp = last.ContainsKey("dtcp") && (double)last["dtcp"] != 0 ? (double)last["dtcp"] : dt;
+        double dtcp = (double)last["dtcp"];
+        dtcp = dtcp == 0 ? dt : dtcp;
 
         double xcp = (double)last["xcp"];
         double x = xcp;
@@ -25,7 +28,7 @@ public class OrbitalMechanics
         double f0 = dt >= 0 ? 1 : -1;
 
         int n = 0;
-        double r0m = Norm(r0);
+        double r0m = r0.Length();
 
         double f1 = f0 * Math.Sqrt(r0m / mu);
         double f2 = 1 / f1;
@@ -34,10 +37,11 @@ public class OrbitalMechanics
         double f5 = f0 / Math.Sqrt(r0m);
         double f6 = f0 * Math.Sqrt(r0m);
 
-        double[] ir0 = Divide(r0, r0m);
-        double[] v0s = Multiply(v0, f1);
-        double sigma0s = Dot(ir0, v0s);
-        double b0 = Dot(v0s, v0s) - 1;
+        Vector3 ir0 = r0 * (1.0f / (float)r0m);
+        Vector3 v0s = (float)f1 * v0;
+
+        double sigma0s = Vector3.Dot(ir0, v0s);
+        double b0 = Vector3.Dot(v0s, v0s) - 1;
         double alphas = 1 - b0;
 
         double xguess = f5 * x;
@@ -48,14 +52,16 @@ public class OrbitalMechanics
         double dtmin = 0;
 
         double xmax = 2 * Math.PI / Math.Sqrt(Math.Abs(alphas));
-
-        double dtmax = 0, xP = 0, Ps = 0;
+        double xP = 0;
+        double Ps = 0;
+        double dtmax = 0;
 
         if (alphas > 0)
         {
             dtmax = xmax / alphas;
             xP = xmax;
             Ps = dtmax;
+
             while (dts >= Ps)
             {
                 n++;
@@ -67,26 +73,20 @@ public class OrbitalMechanics
         }
         else
         {
-            var ktti = KTTI(xmax, sigma0s, alphas, kmax);
-            dtmax = ktti.t;
-            if (dtmax < dts)
+            (dtmax, _, _, _) = KTTI(xmax, sigma0s, alphas, kmax);
+            while (dtmax < dts)
             {
-                while (dtmax < dts)
-                {
-                    dtmin = dtmax;
-                    xmin = xmax;
-                    xmax = 2 * xmax;
-                    ktti = KTTI(xmax, sigma0s, alphas, kmax);
-                    dtmax = ktti.t;
-                }
+                dtmin = dtmax;
+                xmin = xmax;
+                xmax = 2 * xmax;
+                (dtmax, _, _, _) = KTTI(xmax, sigma0s, alphas, kmax);
             }
         }
 
         if (xmin >= xguess || xguess >= xmax)
             xguess = 0.5 * (xmin + xmax);
 
-        var kttiGuess = KTTI(xguess, sigma0s, alphas, kmax);
-        double dtguess = kttiGuess.t;
+        (double dtguess, _, _, _) = KTTI(xguess, sigma0s, alphas, kmax);
 
         if (dts < dtguess)
         {
@@ -105,12 +105,9 @@ public class OrbitalMechanics
             }
         }
 
-        var kil = KIL(imax, dts, xguess, dtguess, xmin, dtmin, xmax, dtmax, sigma0s, alphas, kmax, A, D, E);
-        xguess = kil.xguess;
-        dtguess = kil.dtguess;
-        A = kil.A;
-        D = kil.D;
-        E = kil.E;
+        (xguess, dtguess, A, D, E) = KIL(imax, dts, xguess, dtguess,
+                                         xmin, dtmin, xmax, dtmax,
+                                         sigma0s, alphas, kmax, A, D, E);
 
         double rs = 1 + 2 * (b0 * A + sigma0s * D * E);
         double b4 = 1 / rs;
@@ -138,12 +135,30 @@ public class OrbitalMechanics
         double Fts = -2 * b4 * D * E;
         double Gt = 1 - 2 * b4 * A;
 
-        double[] r = Add(Multiply(ir0, F * r0m), Multiply(v0s, Gs * r0m));
-        double[] v = Add(Multiply(ir0, Fts * f2), Multiply(v0s, Gt * f2));
+        Vector3 term1 = (float)F * ir0;
+        Vector3 term2 = (float)Gs * v0s;
+        Vector3 r = (float)r0m * (term1 + term2);
+
+        Vector3 vterm1 = (float)Fts * ir0;
+        Vector3 vterm2 = (float)Gt * v0s;
+        Vector3 v = (float)f2 * (vterm1 + vterm2);
+
 
         return (r, v, last);
     }
 
+    // Placeholder definitions for KTTI and KIL
+    // private static (double, double, double, double) KTTI(double x, double sigma, double alpha, int kmax)
+    // {
+    //     // Implement or bind this method accordingly
+    //     throw new NotImplementedException();
+    // }
+
+    // private static (double, double, double, double, double) KIL(int imax, double dts, double xguess, double dtguess,
+    //                                                             double xmin, double dtmin, double xmax, double dtmax,
+    //                                                             double sigma, double alpha, int kmax,
+    //                                                             double A, double D, double E)
+    // {
     // KTTI Function
     public static (double t, double A, double D, double E) KTTI(double xarg, double s0s, double a, int kmax)
     {

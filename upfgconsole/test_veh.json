@@ -1,0 +1,13 @@
+{
+  "Stages": [
+    {
+      "Id": 1,
+      "Mode": 1,
+      "GLim":100,
+      "MassTotal": 100000,
+      "PropellantMass": 80000,
+      "Thrust": 2000000,
+      "Isp": 300
+    }
+  ]
+}

@@ -13,31 +13,55 @@ class Handler
     {
         Console.WriteLine("Hello, World!");
 
-        Simulator sim = new Simulator();
-        sim.SetVesselStateFromMidair(20, 2000, 45);
+        
 
+        Dictionary<string, double> initial = new Dictionary<string, double>
+        {
+            {"altitude", 20 },
+            {"fpa", 45 },
+            {"speed", 2000 },
+            {"latitude", 0 },
+            {"longitude", 0 },
+            {"heading", 90 }
 
-        Target tgt = new Target();
+        };
 
         Dictionary<string, float> desOrbit = new Dictionary<string, float>{
             {"pe", 200 },
-            {"ap", 200},
-            {"inc", 45}
+            {"ap", 200 },
+            {"inc", 0 }
         };
 
+        Vehicle veh = Vehicle.FromJson("/home/oli/code/csharp/upfgconsole/upfgconsole/test_veh.json");
+
+        Simulator sim = new Simulator();
+        sim.SetVesselStateFromLatLong(initial);
+        sim.SetVehicle(veh);
+
+        sim.State.mass = (float)veh.Stages[0].MassTotal;
+
+        Target tgt = new Target();
         tgt.SetTarget(desOrbit, sim);
-
+        
         Upfg guidance = new Upfg();
-
-        guidance.SetupUpfg(sim, tgt);
+        guidance.Setup(sim, tgt);
 
         
         List<float> simX = new List<float>();
         List<float> simY = new List<float>();
 
-        for (int tt = 0; tt <= 10000; tt++)
+        double trem = 13;
+
+        while (guidance.PrevVals.tgo > trem)
         {
-            sim.StepForward(1000);
+            while (!guidance.ConvergenceFlag)
+            {
+                guidance.Run(sim, tgt, veh);
+            }
+
+            guidance.Run(sim, tgt, veh);
+            sim.SetGuidance(guidance.Steering);
+            
 
             Vector3 r = sim.State.r;
 

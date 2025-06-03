@@ -2,6 +2,8 @@ namespace lib;
 
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text.Json;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Net.Mail;
@@ -13,7 +15,7 @@ using ScottPlot.Rendering.RenderActions;
 
 public class Simulator
 {
-    public Vehicle Veh { get; set; }
+    public Vehicle SimVehicle { get; set; }
     public Environment Env { get; set; }
     public Dictionary<string, object> Mission { get; private set; }
     public SimState State { get; private set; }
@@ -25,7 +27,7 @@ public class Simulator
 
     public Simulator()
     {
-        Veh = null;
+        SimVehicle = null;
         Env = null;
         Mission = null;
         State = new SimState();
@@ -39,28 +41,37 @@ public class Simulator
 
     }
 
-
+    public void SetVehicle(Vehicle vehiclein)
+    {
+        SimVehicle = vehiclein;
+        State.mass = (float)SimVehicle.Stages[0].MassTotal;
+    }
 
     public SimState GetVesselState()
     {
         return State;
     }
 
-    public void SetVesselStateFromMidair(double altitude, double velocity, double fpa)
+    public void SetVesselStateFromLatLong(Dictionary<string, double> initial)
     {
+        double altitude = initial["altitude"];
+        double fpa = initial["fpa"];
+        double latitude = initial["latitude"];
+        double longitude = initial["longitude"];
+        double heading = initial["heading"];
+        double speed = initial["speed"];
 
-        double radFpa = fpa * Math.PI / 180.0;
+        fpa = fpa * Math.PI / 180.0;
+        heading = Utils.DegToRad(heading);
 
-        State.r = new Vector3(0, (float)(Constants.Re + altitude * 1000.0), 0);
-        State.v = new Vector3((float)(velocity * Math.Cos(radFpa)), (float)(velocity * Math.Sin(radFpa)), 0);
+        double r = Constants.Re + altitude * 1000;
+
+        State.r = Utils.SphericalToCartesian(latitude, longitude, r);
+        State.v = Utils.ComputeVelocity(State.r, speed, fpa, heading);
         State.t = 0;
 
-        // State = new Dictionary<string, object>
-        // {
-        //     { "r", new Vector3(0, (float)(Constants.Re + altitude * 1000.0), 0) },
-        //     { "v", new Vector3((float)(velocity * Math.Cos(radFpa)), (float)(velocity * Math.Sin(radFpa)), 0) },
-        //     { "t", (float)0.0 }
-        // };
+        State.CartToKepler();
+        State.CalcMiscParams();
 
     }
 
@@ -77,8 +88,8 @@ public class Simulator
     private void CalcAccel(float mass)
     {
         Vector3 r21 = State.r;
-        Iteration["a"] = Utils.CalcGravVector(Constants.Mu, r21);
-        //+ ThrustVector / mass;
+        Iteration["a"] = Utils.CalcGravVector(Constants.Mu, r21)
+        + ThrustVector / State.mass;
 
     }
 
@@ -101,6 +112,7 @@ public class Simulator
         State.r = Iteration["r"];
         State.v = Iteration["v"];
         State.t = State.t + dt;
+        State.mass = State.mass - (float)(SimVehicle.Stages[0].Thrust / (Constants.g0 * SimVehicle.Stages[0].Isp));
         State.CartToKepler();
         State.CalcMiscParams();
 
@@ -162,6 +174,7 @@ public class SimState
     public Vector3 r { get; set; } = new Vector3(0, 0, 0);
     public Vector3 v { get; set; } = new Vector3(0, 0, 0);
     public float t { get; set; } = 0;
+    public float mass { get; set; } = 1e5f;
     public Dictionary<string, double> Kepler { get; set; } = new Dictionary<string, double> { };
     public Dictionary<string, double> Misc { get; set; } = new Dictionary<string, double> { };
 
@@ -253,12 +266,58 @@ public class SimState
 
 public static class Constants
 {
-    public static float Re = 6371000;  // Example Earth radius in meters, replace with actual value
-    public static float Mu = 3.986e14F;
+    public static float Re { get; private set; } = 6371000;  // Example Earth radius in meters, replace with actual value
+    public static float Mu { get; private set; } = 3.986e14f;
+    public static float g0 { get; private set; } = 9.80665f;
 }
 
 public static class Utils
 {
+    public static Vector3 SphericalToCartesian(double latitude, double longitude, double r)
+    {
+        double rX = r * Math.Cos(latitude) * Math.Cos(longitude);
+        double rY = r * Math.Cos(latitude) * Math.Sin(longitude);
+        double rZ = r * Math.Sin(latitude);
+
+        return new Vector3((float)rX, (float)rY, (float)rZ);
+
+    }
+
+    // Get the East unit vector from position in ECI
+    public static Vector3 GetEastUnit(Vector3 position)
+    {
+        Vector3 east = new Vector3(-position.Y, position.X, 0);
+        return Vector3.Normalize(east);
+    }
+
+    // Get the North unit vector from position in ECI
+    public static Vector3 GetNorthUnit(Vector3 position)
+    {
+        Vector3 rHat = Vector3.Normalize(position);
+        Vector3 eastHat = GetEastUnit(position);
+        Vector3 hHat = Vector3.Normalize(Vector3.Cross(rHat, eastHat)); // Up direction
+        Vector3 north = Vector3.Cross(hHat, eastHat);
+        return Vector3.Normalize(north);
+    }
+
+    // Compute velocity vector from position, speed, flight path angle, and heading
+    public static Vector3 ComputeVelocity(Vector3 position, double speed, double gamma, double heading)
+    {
+        Vector3 rHat = Vector3.Normalize(position);
+        Vector3 eastHat = GetEastUnit(position);
+        Vector3 northHat = GetNorthUnit(position);
+
+        // Local horizontal direction
+        Vector3 horizontalDirection = (float)(Math.Cos(heading)) * northHat + (float)(Math.Sin(heading)) * eastHat;
+
+        // Final velocity vector
+        Vector3 velocityDirection = (float)(Math.Cos(gamma)) * horizontalDirection + (float)(Math.Sin(gamma)) * rHat;
+
+        return (float)speed * velocityDirection;
+    }
+
+
+
     public static Vector3 CalcOrbitNormal(float inc, float omega)
     {
         inc = (float)DegToRad(inc); omega = (float)DegToRad(omega);
@@ -403,12 +462,41 @@ public static class Utils
     }
 }
 
+public class Stage
+{
+    public int Id { get; set; }
+    public int Mode { get; set; }
+    public int GLim { get; set; }
+    public double MassTotal { get; set; }
+    public double MassFuel { get; set; }
+    public double Thrust { get; set; }
+    public double Isp { get; set; }
+    
+}
 
 // Placeholder classes for Vehicle and Environment
 public class Vehicle
 {
-    // Vehicle properties here
+    public List<Stage> Stages { get; set; }
+    
+    public static Vehicle FromJson(string filePath)
+    {
+        if (!File.Exists(filePath))
+            throw new FileNotFoundException($"Vehicle configuration file not found: {filePath}");
+
+        string json = File.ReadAllText(filePath);
+        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+
+        var vehicle = JsonSerializer.Deserialize<Vehicle>(json, options);
+        if (vehicle == null)
+            throw new InvalidOperationException("Failed to deserialize the vehicle configuration.");
+
+        return vehicle;
+    }
 }
+
+
+
 
 public class Environment
 {
