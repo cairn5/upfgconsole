@@ -16,8 +16,8 @@ class Handler
         
 
 
-        float inc = 0;
-        float lat = 0f;
+        float inc = 51.6f;
+        float lat = 28.5f;
 
         Dictionary<string, float> desOrbit = new Dictionary<string, float>{
             {"pe", 300 },
