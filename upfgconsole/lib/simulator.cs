@@ -106,8 +106,7 @@ public class Simulator
     private void UpdateStateHistory()
     {
 
-        History.Add(State);
-
+        History.Add((SimState)State.Clone());
 
         State.r = Iteration["r"];
         State.v = Iteration["v"];
@@ -148,9 +147,14 @@ public class SimState
         };
     }
 
+    public object Clone()
+    {
+        return this.MemberwiseClone();
+    }
+
     public void CartToKepler()
     {
-        
+
         Vector3 rdot = v;
 
         double mu = Constants.Mu;

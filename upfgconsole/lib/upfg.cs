@@ -272,7 +272,9 @@ public class Upfg
         if (tgodiff < 0.01)
         {
             ConvergenceFlag = true;
-        };
+            // Console.WriteLine("UPFG CONVERGED");
+        }
+        ;
     }
 
 }

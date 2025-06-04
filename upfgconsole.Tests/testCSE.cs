@@ -100,5 +100,35 @@ namespace lib_tests
             Assert.True(updated.ContainsKey("A"));
             Assert.True(updated["dtcp"] > 0);
         }
+
+        [Fact]
+        public void CSEroutine_ReturnsSpecificValues()
+        {
+            var r0 = new Vector3(6000e3f, 0, 2000);
+            var v0 = new Vector3(0, 7.5e3f, 0);
+            double dt = 60.0;
+
+            var last = new Dictionary<string, double>()
+            {
+                { "dtcp", 0 },
+                { "xcp", 0 },
+                { "A", 0.0 },
+                { "D", 0.0 },
+                { "E", 0.0 }
+            };
+
+            var (r, v, updated) = OrbitalMechanics.CSEroutine(r0, v0, dt, last);
+            Vector3 rexp = new(5980076.5f, 449498.0f, 1993.4f);
+            Vector3 vexp = new(-663.9f, 7475.1f, -0.2213f);
+
+            Assert.Equal(rexp.X, r.X, 1);
+            Assert.Equal(rexp.Y, r.Y, 1);
+            Assert.Equal(rexp.Z, r.Z, 1);
+
+            Assert.Equal(vexp.X, v.X, 1);
+            Assert.Equal(vexp.Y, v.Y, 1);
+            Assert.Equal(vexp.Z, v.Z, 1);
+
+        }
     }
 }

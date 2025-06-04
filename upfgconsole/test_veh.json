@@ -4,10 +4,10 @@
       "Id": 1,
       "Mode": 1,
       "GLim":100,
-      "MassTotal": 40000,
-      "MassFuel": 39000,
-      "Thrust": 200000,
-      "Isp": 300
+      "MassTotal": 420e3,
+      "MassFuel": 200e3,
+      "Thrust": 6837e3,
+      "Isp": 452
     }
   ]
 }

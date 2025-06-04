@@ -12,6 +12,9 @@ using System.Runtime.CompilerServices;
 using System.Security;
 using ScottPlot.LayoutEngines;
 using ScottPlot.Rendering.RenderActions;
+using System.Security.Cryptography;
+using ScottPlot;
+using System.Reflection.Metadata;
 
 
 
@@ -55,9 +58,9 @@ public static class Utils
     {
         Vector3 rHat = Vector3.Normalize(position);
         Vector3 eastHat = GetEastUnit(position);
-        Vector3 hHat = Vector3.Normalize(Vector3.Cross(rHat, eastHat)); // Up direction
-        Vector3 north = Vector3.Cross(hHat, eastHat);
-        return Vector3.Normalize(north);
+        Vector3 north = Vector3.Normalize(Vector3.Cross(rHat, eastHat)); // Up direction
+
+        return north;
     }
 
     // Compute velocity vector from position, speed, flight path angle, and heading
@@ -126,7 +129,7 @@ public static class Utils
         return vout;
     }
 
-    
+
 
     public static double DegToRad(double degrees)
     {
@@ -134,10 +137,10 @@ public static class Utils
 
         return rad;
     }
-    
+
     public static double RadToDeg(double rad)
     {
-        double degrees = rad /( Math.PI / 180.0);
+        double degrees = rad / (Math.PI / 180.0);
 
         return degrees;
     }
@@ -217,11 +220,10 @@ public static class Utils
         }
 
         // Visualization: Placeholder - let me know if you want this as a WPF 3D or Unity project!
-        Console.WriteLine("Orbit points computed. Add your plotting logic here.");
         ScottPlot.Plot XYplot = new();
         XYplot.Add.Scatter(xp, yp);
         XYplot.Add.Scatter(xp, zp);
-        XYplot.SavePng("XY.png", 400, 300);
+        XYplot.SavePng("kepler.png", 400, 300);
 
     }
 
@@ -235,6 +237,84 @@ public static class Utils
         }
         return result;
     }
+    public static void PrintParamHeader()
+    {
+        Console.WriteLine(
+        "{0,8} {1,8} {2,8} {3,8}  {4,8} {5,8} {6,8}  {7,8} {8,8} {9,8}  {10,8} {11,8} {12,8}",
+        "Tgo",
+        "VgoX", "VgoY", "VgoZ",
+        "RdX", "RdY", "RdZ",
+        "GravX", "GravY", "GravZ",
+        "BiasX", "BiasY", "BiasZ"
+    );
+    }
+
+    public static void PrintParams(Upfg guidance)
+    {
+
+        Console.WriteLine(
+        "{0,8:F3} {1,8:F3} {2,8:F3} {3,8:F3}  {4,8:F3} {5,8:F3} {6,8:F3}  {7,8:F3} {8,8:F3} {9,8:F3}  {10,8:F3} {11,8:F3} {12,8:F3}",
+        guidance.PrevVals.tgo,
+        guidance.PrevVals.vgo.X, guidance.PrevVals.vgo.Y, guidance.PrevVals.vgo.Z,
+        guidance.PrevVals.rd.X, guidance.PrevVals.rd.Y, guidance.PrevVals.rd.Z,
+        guidance.PrevVals.rgrav.X, guidance.PrevVals.rgrav.Y, guidance.PrevVals.rgrav.Z,
+        guidance.PrevVals.rbias.X, guidance.PrevVals.rbias.Y, guidance.PrevVals.rbias.Z);
+    }
+
+    public static float CalcDownRange(SimState end, SimState start)
+    {
+        Vector3 r1 = Vector3.Normalize(end.r);
+        Vector3 r2 = Vector3.Normalize(start.r);
+
+        double angle = Math.Acos(Vector3.Dot(r1, r2));
+
+        double downrange = angle * Constants.Re;
+
+        return (float)downrange;
+
+    }
+
+    public static void PlotTrajectory(Simulator sim)
+    {
+
+        List<float> xp = new();
+        List<float> yp = new();
+        List<float> zp = new();
+        List<float> tp = new();
+        List<float> drp = new();
+        List<float> altp = new();
+
+
+        for (int i = 0; i < sim.History.Count(); i++)
+        {
+            xp.Add(sim.History[i].r.X);
+            yp.Add(sim.History[i].r.Y);
+            zp.Add(sim.History[i].r.Z);
+            tp.Add(sim.History[i].t);
+            drp.Add(CalcDownRange(sim.History[i], sim.History[0]));
+            altp.Add((float)sim.History[i].Misc["altitude"]);
+        }
+
+        ScottPlot.Plot xy = new();
+        xy.Add.Scatter(xp, yp);
+        xy.SavePng("xy.png", 400, 300);
+
+        ScottPlot.Plot xz = new();
+        xz.Add.Scatter(xp, zp);
+        xz.SavePng("xz.png", 400, 300);
+
+        ScottPlot.Plot yz = new();
+        yz.Add.Scatter(yp, zp);
+        yz.SavePng("yz.png", 400, 300);
+
+        ScottPlot.Plot downrange = new();
+        downrange.Add.Scatter(drp, altp);
+        downrange.SavePng("downrange.png", 400, 300);
+
+
+
+    }
+
 }
 
 
