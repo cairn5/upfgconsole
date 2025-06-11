@@ -78,7 +78,7 @@ public class Upfg
         List<double> aT = new List<double>();
         List<double> tu = new List<double>();
         List<double> tb = new List<double>();
-
+                
         for (int i = 0; i < n; i++)
         {
             var stage = vehicle.Stages[i];
@@ -92,7 +92,7 @@ public class Upfg
             ve.Add(stage.Isp * Constants.g0);
             aT.Add(stage.Thrust / stage.MassTotal);
             tu.Add(ve[i] / aT[i]);
-            tb.Add(stage.MassFuel / massflow);
+            tb.Add((stage.MassTotal - stage.MassDry) / massflow);
         }
 
         // 2 accelerations
@@ -141,45 +141,46 @@ public class Upfg
             if (i == 0)
                 tgoi.Add(tb[i]);
             else
-                tgoi.Add(tgoi[i - 1] - tb[i]);
+                tgoi.Add(tgoi[i - 1] + tb[i]);
         }
 
         double tgo = tgoi[n - 1];
 
-        // 4 thrust integrals
+        // 4 - Thrust integrals
         L = 0;
         double J = 0, S = 0, Q_ = 0, H = 0, P = 0;
-        List<double> Ji = new List<double>(), Si = new List<double>(), Qi = new List<double>(), Pi = new List<double>();
 
-        double tgoi1 = 0;
-        for (int i = 1; i < n; i++)
-        {
-            if (i > 0)
-                tgoi1 = tgoi[i - 1];
-        }
+        List<double> Ji = new List<double>(new double[n]);
+        List<double> Si = new List<double>(new double[n]);
+        List<double> Qi = new List<double>(new double[n]);
+        List<double> Pi = new List<double>(new double[n]);
 
         for (int i = 0; i < n; i++)
         {
-            if (SM[0] == 1)
+            double tgoi1 = (i == 0) ? 0 : tgoi[i - 1];
+
+            if (SM[i] == 1) // Constant thrust mode
             {
-                Ji.Add(tu[i] * Li[i] - ve[i] * tb[i]);
-                Si.Add(-Ji[i] + Li[i] * tb[i]);
-                Qi.Add(Si[i] * (tu[i] + tgoi1) - 0.5 * ve[i] * tb[i] * tb[i]);
-                Pi.Add(Qi[i] * (tu[i] + tgoi1) - 0.5 * ve[i] * tb[i] * tb[i] * (tb[i] / 3 + tgoi1));
+                Ji[i] = tu[i] * Li[i] - ve[i] * tb[i];
+                Si[i] = -Ji[i] + Li[i] * tb[i];
+                Qi[i] = Si[i] * (tu[i] + tgoi1) - 0.5 * ve[i] * tb[i] * tb[i];
+                Pi[i] = Qi[i] * (tu[i] + tgoi1) - 0.5 * ve[i] * tb[i] * tb[i] * (tb[i] / 3 + tgoi1);
             }
-            else if (SM[0] == 2)
+            else if (SM[i] == 2) // Constant acceleration mode
             {
-                Ji.Add(0.5 * Li[i] * tb[i]);
-                Si.Add(Ji[i]);
-                Qi.Add(Si[i] * (tb[i] / 3 + tgoi1));
-                Pi.Add((1.0 / 6.0) * Si[i] * (tgoi[i] * tgoi[i] + 2 * tgoi[i] * tgoi1 + 3 * tgoi1 * tgoi1));
+                Ji[i] = 0.5 * Li[i] * tb[i];
+                Si[i] = Ji[i];
+                Qi[i] = Si[i] * (tb[i] / 3 + tgoi1);
+                Pi[i] = (1.0 / 6.0) * Si[i] * (tgoi[i] * tgoi[i] + 2 * tgoi[i] * tgoi1 + 3 * tgoi1 * tgoi1);
             }
 
+            // Common adjustments for both modes
             Ji[i] += Li[i] * tgoi1;
             Si[i] += L * tb[i];
             Qi[i] += J * tb[i];
             Pi[i] += H * tb[i];
 
+            // Accumulate totals
             L += Li[i];
             J += Ji[i];
             S += Si[i];
@@ -187,6 +188,7 @@ public class Upfg
             P += Pi[i];
             H = J * tgoi[i] - Q_;
         }
+
 
         // 5
         Vector3 lambda_vec = Vector3.Normalize(vgo);
@@ -269,7 +271,7 @@ public class Upfg
     public void CheckConvergence()
     {
         double tgodiff = (CurrentVals.tgo - PrevVals.tgo) / PrevVals.tgo;
-        if (tgodiff < 0.01)
+        if (Math.Abs(tgodiff) < 0.01)
         {
             ConvergenceFlag = true;
             // Console.WriteLine("UPFG CONVERGED");

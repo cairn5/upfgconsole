@@ -36,8 +36,8 @@ class Handler
         };
 
 
-        Vehicle veh = Vehicle.FromJson("/home/oli/code/csharp/upfgconsole/upfgconsole/test_veh.json");
-
+        Vehicle veh = Vehicle.FromJson("/home/oli/code/csharp/upfgconsole/upfgconsole/saturnV.json");
+        
         Simulator sim = new Simulator();
         sim.SetVesselStateFromLatLong(initial);
         sim.SetVehicle(veh);
@@ -70,10 +70,10 @@ class Handler
 
             guidance.Run(sim, tgt, veh);
 
-            // Utils.PrintParams(guidance);
+            Utils.PrintParams(guidance);
 
 
-            Console.WriteLine(sim.State.mass);
+            // Console.WriteLine(sim.State.mass);
 
             if (guidance.ConvergenceFlag)
             {
@@ -81,6 +81,16 @@ class Handler
                 sim.StepForward();
             }
 
+
+            if (sim.State.mass < sim.SimVehicle.CurrentStage.MassDry)
+            {
+                veh.AdvanceStage();
+                sim.SetVehicle(veh);
+
+                Console.WriteLine("STAGING");
+                
+            }
+        
 
             iter++;
 

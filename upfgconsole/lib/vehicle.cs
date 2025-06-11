@@ -19,21 +19,26 @@ public class Stage
     public int Mode { get; set; }
     public int GLim { get; set; }
     public double MassTotal { get; set; }
-    public double MassFuel { get; set; }
+    public double MassDry { get; set; }
     public double Thrust { get; set; }
     public double Isp { get; set; }
 
 }
 
-// Placeholder classes for Vehicle and Environment
 public class Vehicle
 {
+    // Static configuration
     public List<Stage> Stages { get; set; } = new List<Stage>();
-    
+
+    // Dynamic state
+    public int CurrentStageIndex { get; private set; } = 0;
+    public Stage CurrentStage => Stages.Count > 0 ? Stages[0] : null;
+
+    // Factory method for loading from config file
     public static Vehicle FromJson(string filePath)
     {
         if (!File.Exists(filePath))
-            throw new FileNotFoundException($"Vehicle configuration file not found: {filePath}");
+            throw new FileNotFoundException($"VehicleInfo configuration file not found: {filePath}");
 
         string json = File.ReadAllText(filePath);
         var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
@@ -44,4 +49,19 @@ public class Vehicle
 
         return vehicle;
     }
+
+    public void AdvanceStage()
+    {
+        if (Stages.Count > 0)
+        {
+            Stages.RemoveAt(0);
+            CurrentStageIndex = 0;
+        }
+    }
+
+
+    // public void UpdateMass()
+    // {
+    //     CurrentMass = CurrentMass - (float)(SimVehicle.Stages[0].Thrust / (Constants.g0 * SimVehicle.Stages[0].Isp));
+    // }
 }

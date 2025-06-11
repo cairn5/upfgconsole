@@ -44,7 +44,7 @@ public class Simulator
     public void SetVehicle(Vehicle vehiclein)
     {
         SimVehicle = vehiclein;
-        State.mass = (float)SimVehicle.Stages[0].MassTotal;
+        State.mass = (float)SimVehicle.CurrentStage.MassTotal;
     }
 
     public SimState GetVesselState()
@@ -111,7 +111,8 @@ public class Simulator
         State.r = Iteration["r"];
         State.v = Iteration["v"];
         State.t = State.t + dt;
-        State.mass = State.mass - (float)(SimVehicle.Stages[0].Thrust / (Constants.g0 * SimVehicle.Stages[0].Isp));
+        State.mass = State.mass - (float)(SimVehicle.CurrentStage.Thrust / (Constants.g0 * SimVehicle.CurrentStage.Isp));
+
         State.CartToKepler();
         State.CalcMiscParams();
 

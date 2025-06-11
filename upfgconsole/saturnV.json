@@ -1,0 +1,23 @@
+{
+  "Stages": [
+    {
+      "Id": 1,
+      "Mode": 1,
+      "GLim":100,
+      "MassTotal": 599e3,
+      "MassDry": 190e3,
+      "Thrust": 5165e3,
+      "Isp": 421
+    },
+    {
+      "Id": 2,
+      "Mode": 1,
+      "GLim":100,
+      "MassTotal": 119e3,
+      "MassDry": 10e3,
+      "Thrust": 1033e3,
+      "Isp": 421
+    }
+  ]
+  
+}
