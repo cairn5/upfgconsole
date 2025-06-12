@@ -50,6 +50,14 @@ public class Vehicle
         return vehicle;
     }
 
+    public static Vehicle FromStages(MissionConfig mission)
+    {
+        return new Vehicle
+        {
+            Stages = mission.StageList
+        };
+    }
+
     public void AdvanceStage()
     {
         if (Stages.Count > 0)

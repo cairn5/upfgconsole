@@ -1,23 +1,28 @@
 {
-  "Stages": [
+  "Orbit": {
+    "mode": 1,
+    "pe": 300,
+    "ap": 300,
+    "inc": 89
+  },
+  "StageList": [
     {
       "Id": 1,
       "Mode": 1,
-      "GLim":100,
-      "MassTotal": 599e3,
-      "MassDry": 190e3,
-      "Thrust": 5165e3,
+      "GLim": 100,
+      "MassTotal": 599000,
+      "MassDry": 190000,
+      "Thrust": 5165000,
       "Isp": 421
     },
     {
       "Id": 2,
       "Mode": 1,
-      "GLim":100,
-      "MassTotal": 119e3,
-      "MassDry": 10e3,
-      "Thrust": 1033e3,
+      "GLim": 100,
+      "MassTotal": 119000,
+      "MassDry": 10000,
+      "Thrust": 1033000,
       "Isp": 421
     }
   ]
-  
 }

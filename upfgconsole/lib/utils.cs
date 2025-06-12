@@ -32,6 +32,16 @@ public static class Constants
 
 public static class Utils
 {
+    public static MissionConfig ReadMission(string filepath)
+    {
+
+        string json = File.ReadAllText(filepath);
+
+        MissionConfig config = JsonSerializer.Deserialize<MissionConfig>(json);
+
+        return config;
+
+    }
     public static Vector3 SphericalToCartesian(double latitude, double longitude, double r)
     {
 

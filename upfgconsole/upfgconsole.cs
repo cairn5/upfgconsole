@@ -6,6 +6,7 @@ using System.Security;
 using ScottPlot.LayoutEngines;
 using lib;
 using System.Reflection;
+using System.Runtime.InteropServices;
 
 class Handler
 {
@@ -13,16 +14,16 @@ class Handler
     {
         Console.WriteLine("Hello, World!");
 
-        float inc = 58.5f;
+       
         float lat = 28.5f;
+        string path = "/home/oli/code/csharp/upfgconsole/upfgconsole/saturnV.json";
 
-        Dictionary<string, float> desOrbit = new Dictionary<string, float>{
-            {"pe", 300 },
-            {"ap", 300 },
-            {"inc", inc }
-        };
+        MissionConfig mission = Utils.ReadMission(path);
 
-        double azimuth = Math.Asin(Math.Cos(Utils.DegToRad(inc)) / Math.Cos(Utils.DegToRad(lat)));
+        Vehicle veh = Vehicle.FromStages(mission);
+        Dictionary<string, float> desOrbit = mission.Orbit;
+
+        double azimuth = Math.Asin(Math.Cos(Utils.DegToRad(desOrbit["inc"])) / Math.Cos(Utils.DegToRad(lat)));
 
         Dictionary<string, double> initial = new Dictionary<string, double>
         {
@@ -35,8 +36,6 @@ class Handler
 
         };
 
-
-        Vehicle veh = Vehicle.FromJson("/home/oli/code/csharp/upfgconsole/upfgconsole/saturnV.json");
         
         Simulator sim = new Simulator();
         sim.SetVesselStateFromLatLong(initial);
@@ -64,7 +63,7 @@ class Handler
             
             if (iter > 1000)
             {
-                Console.WriteLine("UPFG FAILED");
+                Console.WriteLine("UPFG FAILED - CONVERGENCE FAILURE");
                 return;  //throw new Exception("Exceeded max iterations");
             }
 
@@ -84,10 +83,19 @@ class Handler
 
             if (sim.State.mass < sim.SimVehicle.CurrentStage.MassDry)
             {
-                veh.AdvanceStage();
-                sim.SetVehicle(veh);
+                if (veh.Stages.Count() > 1)
+                {
+                    veh.AdvanceStage();
+                    sim.SetVehicle(veh);
 
-                Console.WriteLine("STAGING");
+                    Console.WriteLine("STAGING");
+                }
+                else
+                {
+                    Console.WriteLine("UPFG FAILED - INSUFFICIENT DV");
+                    return;  
+                }
+                
                 
             }
         
@@ -105,7 +113,6 @@ class Handler
         Utils.PlotOrbit(kepler);
     }
 
-
-
+    
 }
 
