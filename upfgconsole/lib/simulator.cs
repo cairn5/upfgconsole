@@ -210,10 +210,16 @@ public class SimState
         // Semi-major axis
         double a = 1 / ((2 / r.Length()) - (Vector3.Dot(rdot, rdot) / mu));
 
+        //ap and pe
+        double rp = a * (1 - eMag); // periapsis
+        double ra = a * (1 + eMag); // apoapsis
+
         Kepler = new Dictionary<string, double>
         {
             { "a", a },
             { "e", eMag },
+            { "ap", ra },
+            { "pe", rp },
             { "omega", Utils.RadToDeg(omega) },
             { "LAN", Utils.RadToDeg(LAN) },
             { "i", Utils.RadToDeg(i) },

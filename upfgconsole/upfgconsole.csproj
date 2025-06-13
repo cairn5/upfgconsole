@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="ConsoleTables" Version="2.4.2" />
     <PackageReference Include="ScottPlot" Version="5.0.55" />
     <PackageReference Include="Xunit" Version="2.9.3" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />

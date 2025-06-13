@@ -15,7 +15,9 @@ using ScottPlot.Rendering.RenderActions;
 using System.Security.Cryptography;
 using ScottPlot;
 using System.Reflection.Metadata;
-
+using ConsoleTables;
+using HarfBuzzSharp;
+using System.Runtime.InteropServices;
 
 
 // public class SimHistory
@@ -247,7 +249,7 @@ public static class Utils
         }
         return result;
     }
-    public static void PrintParamHeader()
+    public static void PrintDebugParamHeader()
     {
         Console.WriteLine(
         "{0,8} {1,8} {2,8} {3,8}  {4,8} {5,8} {6,8}  {7,8} {8,8} {9,8}  {10,8} {11,8} {12,8}",
@@ -259,7 +261,7 @@ public static class Utils
     );
     }
 
-    public static void PrintParams(Upfg guidance)
+    public static void PrintDebugParams(Upfg guidance)
     {
 
         Console.WriteLine(
@@ -269,6 +271,91 @@ public static class Utils
         guidance.PrevVals.rd.X, guidance.PrevVals.rd.Y, guidance.PrevVals.rd.Z,
         guidance.PrevVals.rgrav.X, guidance.PrevVals.rgrav.Y, guidance.PrevVals.rgrav.Z,
         guidance.PrevVals.rbias.X, guidance.PrevVals.rbias.Y, guidance.PrevVals.rbias.Z);
+    }
+
+    public static void PrintVars(Upfg guidance, Simulator sim, MissionConfig mission, Target tgt, Vehicle veh)
+    {
+
+        Console.Clear();
+        Console.CursorVisible = false;
+
+        Console.WriteLine("--------------------GUIDANCE PARAMETERS -------------------");
+        var upfgTable = new ConsoleTable("TB", "TGO", "VGO", "RGO", "RGRAV", "RBIAS");
+        upfgTable.AddRow(
+            guidance.PrevVals.tb.ToString("F1").PadLeft(6),
+            guidance.PrevVals.tgo.ToString("F1").PadLeft(6),
+            guidance.PrevVals.vgo.Length().ToString("F1").PadLeft(6),
+            (guidance.PrevVals.rd - sim.State.r).Length().ToString("F1").PadLeft(6),
+            guidance.PrevVals.rgrav.Length().ToString("F1").PadLeft(6),
+            guidance.PrevVals.rbias.Length().ToString("F1").PadLeft(6)
+        );
+        upfgTable.Write(Format.Alternative);
+
+        Console.WriteLine("-------- ORBITAL ELEMENTS --------");
+        var transposedTable = new ConsoleTable(" ", "ACTUAL", "TARGET");
+
+        // Add each orbital element as a row, with corresponding values from sim.State.Kepler and tgt
+        transposedTable.AddRow("AP",
+            sim.State.Kepler["ap"].ToString("F1").PadLeft(6),
+            tgt.ap.ToString("F1").PadLeft(6))
+        .AddRow("AP",
+            sim.State.Kepler["pe"].ToString("F1").PadLeft(6),
+            tgt.pe.ToString("F1").PadLeft(6))
+        .AddRow("INC",
+            sim.State.Kepler["i"].ToString("F2").PadLeft(6),
+            Utils.RadToDeg(tgt.inc).ToString("F2").PadLeft(6))
+        .AddRow("LAN",
+            sim.State.Kepler["LAN"].ToString("F2").PadLeft(6),
+            Utils.RadToDeg(tgt.LAN).ToString("F2").PadLeft(6))
+        .AddRow("ECC",
+            sim.State.Kepler["e"].ToString("F4").PadLeft(6),
+            tgt.ecc.ToString("F4").PadLeft(6));
+
+        transposedTable.Write(Format.Alternative);
+
+        Console.SetCursorPosition(40, 5);
+        Console.WriteLine("-----------");
+        Console.SetCursorPosition(40, 6);
+        Console.WriteLine("UPFG STATUS:");
+
+        Console.SetCursorPosition(40, 8);
+        if (guidance.ConvergenceFlag)
+        {
+            Console.WriteLine("CONVERGED");
+        }
+        else
+        {
+            Console.WriteLine("UPFG CONVERGING");
+        }
+        Console.SetCursorPosition(40,9);
+        Console.WriteLine("-----------");
+
+        Console.SetCursorPosition(40,11);
+        Console.WriteLine("VEHICLE STATUS:");
+
+        Console.SetCursorPosition(40, 13);
+        Console.WriteLine("VEL:    " + sim.State.v.Length().ToString("F1"));
+        Console.SetCursorPosition(40, 14);
+        Console.WriteLine("MASS:   " + sim.State.mass.ToString("F1"));
+
+        Console.SetCursorPosition(40, 15);
+        Console.WriteLine("STAGES: " + veh.Stages.Count().ToString());
+
+        // Console.WriteLine("----- ORBITAL ELEMENTS -----");
+        // var orbitTable = new ConsoleTable("ap","pe", "INC", "LAN", "ECC");
+        // orbitTable.AddRow(
+        //     sim.State.Kepler["ap"].ToString("F1").PadLeft(6),
+        //     sim.State.Kepler["pe"].ToString("F1").PadLeft(6),
+        //     sim.State.Kepler["i"].ToString("F2").PadLeft(6),
+        //     sim.State.Kepler["LAN"].ToString("F2").PadLeft(6),
+        //     sim.State.Kepler["e"].ToString("F4").PadLeft(6)
+        // )
+        // .AddRow(tgt.ap, tgt.pe, Utils.RadToDeg(tgt.inc), Utils.RadToDeg(tgt.LAN), tgt.ecc);
+        // orbitTable.Write(Format.Alternative);
+
+        // Console.WriteLine();
+
+
     }
 
     public static float CalcDownRange(SimState end, SimState start)

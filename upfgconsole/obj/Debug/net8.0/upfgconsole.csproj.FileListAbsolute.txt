@@ -40,3 +40,4 @@
 /home/oli/code/csharp/upfgconsole/upfgconsole/obj/Debug/net8.0/upfgconsole.pdb
 /home/oli/code/csharp/upfgconsole/upfgconsole/obj/Debug/net8.0/upfgconsole.genruntimeconfig.cache
 /home/oli/code/csharp/upfgconsole/upfgconsole/obj/Debug/net8.0/ref/upfgconsole.dll
+/home/oli/code/csharp/upfgconsole/upfgconsole/bin/Debug/net8.0/ConsoleTables.dll

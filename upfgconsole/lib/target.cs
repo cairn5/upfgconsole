@@ -21,13 +21,19 @@ public class Target
     public Vector3 normal { get; private set; } = new Vector3(0, 0, 0);
     public float inc { get; private set; } = 0;
     public float LAN { get; private set; } = 0;
+    public float ap { get; private set; } = 0;
+    public float pe { get; private set; } = 0;
+    public float ecc { get; private set; } = 0;
 
     public void SetTarget(Dictionary<string, float> targetParams, Simulator sim)
     {
         SimState state = sim.State;
 
-        float pe = targetParams["pe"] * 1000 + Constants.Re;
-        float ap = targetParams["ap"] * 1000 + Constants.Re;
+        pe = targetParams["pe"] * 1000 + Constants.Re;
+        ap = targetParams["ap"] * 1000 + Constants.Re;
+
+
+        ecc = (ap - pe) / (ap + pe);
 
         radius = pe;
         float sma = (pe + ap) / 2;

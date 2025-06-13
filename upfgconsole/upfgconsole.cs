@@ -5,8 +5,10 @@ using System.Numerics;
 using System.Security;
 using ScottPlot.LayoutEngines;
 using lib;
+using ConsoleTables;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 class Handler
 {
@@ -41,8 +43,6 @@ class Handler
         sim.SetVesselStateFromLatLong(initial);
         sim.SetVehicle(veh);
 
-        sim.State.mass = (float)veh.Stages[0].MassTotal;
-
         Target tgt = new Target();
         tgt.SetTarget(desOrbit, sim);
         
@@ -53,7 +53,7 @@ class Handler
 
         double trem = 2;
 
-        Utils.PrintParamHeader();
+        // Utils.PrintParamHeader();
 
 
         int iter = 0;
@@ -69,7 +69,7 @@ class Handler
 
             guidance.Run(sim, tgt, veh);
 
-            Utils.PrintParams(guidance);
+            Utils.PrintVars(guidance, sim, mission, tgt, veh);
 
 
             // Console.WriteLine(sim.State.mass);
@@ -98,6 +98,10 @@ class Handler
                 
                 
             }
+            
+        
+            Thread.Sleep(1000); // waits for 1000 milliseconds (1 second)
+
         
 
             iter++;
