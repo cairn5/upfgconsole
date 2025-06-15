@@ -1,6 +1,6 @@
 # Guidance#
 
-A prototype repository for developing and testing guidance algorithms for the upcoming game **KSA** (Kerbal Space Agency).
+A prototype repository for developing and testing guidance algorithms for the upcoming **KSA** (Kitten Space Agency).
 
 ## Overview
 
