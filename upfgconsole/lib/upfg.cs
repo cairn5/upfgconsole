@@ -63,7 +63,7 @@ public class Upfg
         Vector3 rbias = PrevVals.rbias;
         Vector3 rd = PrevVals.rd;
         Vector3 rgrav = PrevVals.rgrav;
-        double tp = PrevVals.tb;
+        double tp = PrevVals.time;
         Vector3 vprev = PrevVals.v;
         Vector3 vgo = PrevVals.vgo;
 
@@ -99,7 +99,7 @@ public class Upfg
         double dt = t - tp;
         Vector3 dvsensed = v_ - vprev;
         vgo -= dvsensed;
-        tb[0] -= tp;
+        tb[0] -= PrevVals.tb;
 
         // 3 burn time
         // double[] aT = new double[n];
@@ -120,9 +120,9 @@ public class Upfg
 
         for (int i = 0; i < n - 1; i++)
         {
-            if (SM[0] == 1)
+            if (SM[i] == 1)
                 Li.Add(ve[i] * Math.Log(tu[i] / (tu[i] - tb[i])));
-            else if (SM[0] == 2)
+            else if (SM[i] == 2)
                 Li.Add(aL[i] * tb[i]);
 
             L += Li[i];

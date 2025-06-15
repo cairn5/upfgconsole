@@ -123,3 +123,4 @@
 /home/oli/code/csharp/upfgconsole/upfgconsole.Tests/obj/Debug/net8.0/upfgconsole.Tests.pdb
 /home/oli/code/csharp/upfgconsole/upfgconsole.Tests/obj/Debug/net8.0/upfgconsole.Tests.genruntimeconfig.cache
 /home/oli/code/csharp/upfgconsole/upfgconsole.Tests/obj/Debug/net8.0/ref/upfgconsole.Tests.dll
+/home/oli/code/csharp/upfgconsole/upfgconsole.Tests/bin/Debug/net8.0/ConsoleTables.dll

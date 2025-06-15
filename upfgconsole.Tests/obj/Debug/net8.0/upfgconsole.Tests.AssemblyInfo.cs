@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("upfgconsole.Tests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+07b0740560ca8834d1a178508dce1330ca7624c9")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+37fd103b6bf58eb17200c6c74e8c56011ec07e6b")]
 [assembly: System.Reflection.AssemblyProductAttribute("upfgconsole.Tests")]
 [assembly: System.Reflection.AssemblyTitleAttribute("upfgconsole.Tests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

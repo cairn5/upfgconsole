@@ -1,5 +1,11 @@
 {
-  "Stages": [
+  "Orbit": {
+    "mode": 1,
+    "pe": 300,
+    "ap": 300,
+    "inc": 45
+  },
+  "StageList": [
     {
       "Id": 1,
       "Mode": 1,
