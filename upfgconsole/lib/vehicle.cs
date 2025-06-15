@@ -13,17 +13,17 @@ using ScottPlot.LayoutEngines;
 using ScottPlot.Rendering.RenderActions;
 
 
-public class Stage
-{
-    public int Id { get; set; }
-    public int Mode { get; set; }
-    public int GLim { get; set; }
-    public double MassTotal { get; set; }
-    public double MassDry { get; set; }
-    public double Thrust { get; set; }
-    public double Isp { get; set; }
+// public class Stage
+// {
+//     public int Id { get; set; }
+//     public int Mode { get; set; }
+//     public int GLim { get; set; }
+//     public double MassTotal { get; set; }
+//     public double MassDry { get; set; }
+//     public double Thrust { get; set; }
+//     public double Isp { get; set; }
 
-}
+// }
 
 public class Vehicle
 {

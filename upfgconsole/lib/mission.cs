@@ -12,5 +12,5 @@ public class Stage
 public class MissionConfig
 {
     public Dictionary<string, float> Orbit { get; set; } = new Dictionary<string, float> { };
-    public List<lib.Stage> StageList { get; set; } = new List<lib.Stage>();
+    public List<Stage> StageList { get; set; } = new List<Stage>();
 }
