@@ -29,7 +29,7 @@ public class Upfg
         Vector3 curR = sim.State.r;
         Vector3 curV = sim.State.v;
 
-        Vector3 unitvec = Utils.RodriguesRotation(curR, mission.normal, 20);
+        Vector3 unitvec = Utils.RodriguesRotation(curR, mission.normal, Utils.DegToRad(20));
         Vector3 desR = unitvec / unitvec.Length() * mission.radius;
 
         Vector3 tempvec = Vector3.Cross(mission.normal, desR);

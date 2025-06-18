@@ -1,0 +1,11 @@
+{
+  "Simulator": {
+    "speed": 1,
+    "dt": 0,
+    "startLat" : 28.5,
+    "startLong" : 0,
+    "startGround" : 1,
+    "airVel" : 0,
+    "airFpa" : 50
+  }
+}

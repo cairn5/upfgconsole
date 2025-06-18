@@ -46,7 +46,7 @@ public class SimulatorTests
             { "speed", 7800 } // m/s
         };
 
-        sim.SetVesselStateFromLatLong(initial);
+        sim.SetVesselStateFromLatLongAir(initial);
 
         Assert.NotEqual(Vector3.Zero, sim.GetVesselState().r);
         Assert.NotEqual(Vector3.Zero, sim.GetVesselState().v);

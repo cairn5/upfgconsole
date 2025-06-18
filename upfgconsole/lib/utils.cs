@@ -28,6 +28,7 @@ using System.Runtime.InteropServices;
 public static class Constants
 {
     public static float Re { get; private set; } = 6371000;  // Example Earth radius in meters, replace with actual value
+    public static double We = 7.2921150e-5; // rad/s
     public static float Mu { get; private set; } = 3.986e14f;
     public static float g0 { get; private set; } = 9.80665f;
 }
@@ -44,6 +45,110 @@ public static class Utils
         return config;
 
     }
+
+    public static double CalcLaunchAzimuthNonRotating(double inc, double lat)
+    {
+        double azimuth = Math.Asin(Math.Cos(Utils.DegToRad(inc) / Math.Cos(Utils.DegToRad(lat))));
+
+        return azimuth;
+    }
+
+    public static double CalcLaunchAzimuthRotating(Simulator sim, Target tgt)
+    {
+        // tgt.inc and sim.State.Misc["latitude"] are already in radians
+        double azimuth = Math.Asin(Math.Cos(tgt.inc) / Math.Cos(sim.State.Misc["latitude"]));
+
+        double vorbit = tgt.velocity;
+        double veqrot = Constants.We * Constants.Re;
+
+        double numerator = vorbit * Math.Sin(azimuth) - veqrot * Math.Cos(sim.State.Misc["latitude"]);
+        double denominator = vorbit * Math.Cos(azimuth);
+        double correctedAz = Math.Atan2(numerator, denominator);
+
+        return correctedAz;
+    }
+
+    // Convert ECI (Earth-Centered Inertial) SimState to ECEF (Earth-Centered Earth-Fixed) SimState
+    public static SimState ECItoECEF(SimState statein)
+    {
+        double omega = Constants.We;
+        double t = statein.t;
+        double theta = omega * t;
+        Vector3 r_eci = statein.r;
+        Vector3 v_eci = statein.v;
+        float cosTheta = (float)Math.Cos(theta);
+        float sinTheta = (float)Math.Sin(theta);
+        float x_ecef = cosTheta * r_eci.X + sinTheta * r_eci.Y;
+        float y_ecef = -sinTheta * r_eci.X + cosTheta * r_eci.Y;
+        float z_ecef = r_eci.Z;
+        Vector3 r_ecef = new(x_ecef, y_ecef, z_ecef);
+        float vx_ecef = cosTheta * v_eci.X + sinTheta * v_eci.Y;
+        float vy_ecef = -sinTheta * v_eci.X + cosTheta * v_eci.Y;
+        float vz_ecef = v_eci.Z;
+        Vector3 v_ecef = new(vx_ecef, vy_ecef, vz_ecef);
+        Vector3 omegaVec = new(0, 0, (float)omega);
+        Vector3 v_surface = v_ecef - Vector3.Cross(omegaVec, r_ecef);
+        var stateout = new SimState
+        {
+            r = r_ecef,
+            v = v_surface,
+            t = statein.t,
+            mass = statein.mass
+        };
+        stateout.CalcMiscParams();
+        stateout.CartToKepler();
+        return stateout;
+    }
+
+    // Convert ECEF (Earth-Centered Earth-Fixed) SimState to ECI (Earth-Centered Inertial) SimState
+    public static SimState ECEFtoECI(SimState statein)
+    {
+        double omega = Constants.We;
+        double t = statein.t;
+        double theta = omega * t;
+        Vector3 r_ecef = statein.r;
+        Vector3 v_ecef = statein.v;
+        Vector3 omegaVec = new(0, 0, (float)omega);
+        Vector3 v_ecef_rot = v_ecef + Vector3.Cross(omegaVec, r_ecef);
+        float cosTheta = (float)Math.Cos(-theta);
+        float sinTheta = (float)Math.Sin(-theta);
+        float x_eci = cosTheta * r_ecef.X + sinTheta * r_ecef.Y;
+        float y_eci = -sinTheta * r_ecef.X + cosTheta * r_ecef.Y;
+        float z_eci = r_ecef.Z;
+        Vector3 r_eci = new(x_eci, y_eci, z_eci);
+        float vx_eci = cosTheta * v_ecef_rot.X + sinTheta * v_ecef_rot.Y;
+        float vy_eci = -sinTheta * v_ecef_rot.X + cosTheta * v_ecef_rot.Y;
+        float vz_eci = v_ecef_rot.Z;
+        Vector3 v_eci = new(vx_eci, vy_eci, vz_eci);
+        var stateout = new SimState
+        {
+            r = r_eci,
+            v = v_eci,
+            t = statein.t,
+            mass = statein.mass
+        };
+        stateout.CalcMiscParams();
+        stateout.CartToKepler();
+        return stateout;
+    }
+
+    // Calculate the ECI velocity of a point at rest on the Earth's surface (in ECEF)
+    // Returns a SimState with ECI velocity and ECI position
+    public static SimState SurfaceRestECIVelocity(SimState statein)
+    {
+        // At rest in ECEF, so v = 0
+        var ecefState = new SimState
+        {
+            r = statein.r,
+            v = Vector3.Zero,
+            t = statein.t,
+            mass = statein.mass
+        };
+        var eciState = ECEFtoECI(ecefState);
+        return eciState;
+    }
+    
+
     public static Vector3 SphericalToCartesian(double latitude, double longitude, double r)
     {
 
@@ -130,7 +235,7 @@ public static class Utils
     {
         Vector3 vout;
 
-        double angleRad = DegToRad(angle);
+        double angleRad = angle;
         double cosAngle = Math.Cos(angleRad);
         double sinAngle = Math.Sin(angleRad);
 
@@ -273,7 +378,7 @@ public static class Utils
         guidance.PrevVals.rbias.X, guidance.PrevVals.rbias.Y, guidance.PrevVals.rbias.Z);
     }
 
-    public static void PrintVars(Upfg guidance, Simulator sim, MissionConfig mission, Target tgt, Vehicle veh)
+    public static void PrintVars(Upfg guidance, Simulator sim, Target tgt, Vehicle veh)
     {
 
         Console.Clear();

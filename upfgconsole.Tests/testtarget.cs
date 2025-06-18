@@ -12,7 +12,7 @@ public class TargetTests
     {
         // Arrange
         var sim = new Simulator();
-        sim.SetVesselStateFromLatLong(new Dictionary<string, double>
+        sim.SetVesselStateFromLatLongAir(new Dictionary<string, double>
         {
             {"altitude", 0},
             {"fpa", 0},
@@ -49,7 +49,7 @@ public class TargetTests
     {
         // Arrange
         var sim = new Simulator();
-        sim.SetVesselStateFromLatLong(new Dictionary<string, double>
+        sim.SetVesselStateFromLatLongAir(new Dictionary<string, double>
         {
             {"altitude", 0},
             {"fpa", 0},

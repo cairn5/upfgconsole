@@ -32,7 +32,7 @@ public class Simulator
 
         State.CalcMiscParams();
         State.CartToKepler();
-        
+
         Iteration = new Dictionary<string, Vector3>();
         dt = 1;
         ThrustVector = new Vector3(0, 0, 0);
@@ -52,7 +52,7 @@ public class Simulator
         return State;
     }
 
-    public void SetVesselStateFromLatLong(Dictionary<string, double> initial)
+    public void SetVesselStateFromLatLongAir(Dictionary<string, double> initial)
     {
         double altitude = initial["altitude"];
         double fpa = initial["fpa"];
@@ -69,6 +69,22 @@ public class Simulator
         State.r = Utils.SphericalToCartesian(latitude, longitude, r);
         State.v = Utils.ComputeVelocity(State.r, speed, fpa, heading);
         State.t = 0;
+
+        State.CartToKepler();
+        State.CalcMiscParams();
+
+    }
+
+    public void SetVesselStateFromLatLongGround(Dictionary<string, double> initial)
+    {
+        double latitude = initial["latitude"];
+        double longitude = initial["longitude"];
+
+        double r = Constants.Re;
+
+        State.r = Utils.SphericalToCartesian(latitude, longitude, r);
+        State.v = Vector3.Zero;
+        State = Utils.SurfaceRestECIVelocity(State); //transform for earth's
 
         State.CartToKepler();
         State.CalcMiscParams();
@@ -126,6 +142,58 @@ public class Simulator
         UpdateStateHistory();
 
     }
+
+    public void LoadSimVarsFromJson(string path)
+    {
+        string json = File.ReadAllText(path);
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement.GetProperty("Simulator");
+
+        double startLat = root.GetProperty("startLat").GetDouble();
+        double startLong = root.GetProperty("startLong").GetDouble();
+        double startGround = root.GetProperty("startGround").GetDouble();
+        double airVel = root.GetProperty("airVel").GetDouble();
+        double airFpa = root.GetProperty("airFpa").GetDouble();
+
+        // Set initial state using these values
+        // Convert degrees to radians where needed
+        double latitude = Utils.DegToRad(startLat);
+        double longitude = Utils.DegToRad(startLong);
+
+        if (startGround == 1)
+        {
+            double altitude = startGround; // Assuming this is in km
+            double speed = airVel;
+            double fpa = airFpa; // Flight path angle in degrees
+            double heading = 90; // Default east, can be parameterized
+
+            var initial = new Dictionary<string, double>
+            {
+                {"altitude", altitude},
+                {"fpa", fpa},
+                {"latitude", latitude},
+                {"longitude", longitude},
+                {"heading", heading},
+                {"speed", speed}
+            };
+            SetVesselStateFromLatLongAir(initial);
+        }
+        if (startGround == 0)
+        {
+
+            var initial = new Dictionary<string, double>
+            {
+                {"latitude", latitude},
+                {"longitude", longitude}
+            };
+            SetVesselStateFromLatLongGround(initial);
+        }
+        SetTimeStep(dt);
+    }
+        
+
+
+
 
 }
 

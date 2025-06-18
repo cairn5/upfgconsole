@@ -25,28 +25,16 @@ class Handler
         object simLock = new object();  // Lock to protect shared state
 
         float lat = 28.5f;
-        string path = "/home/oli/code/csharp/upfgconsole/upfgconsole/saturnV.json";
+        string missionPath = "/home/oli/code/csharp/upfgconsole/upfgconsole/saturnV.json";
+        string simPath = "/home/oli/code/csharp/upfgconsole/upfgconsole/simvars.json";
 
-        MissionConfig mission = Utils.ReadMission(path);
+        MissionConfig mission = Utils.ReadMission(missionPath);
         Vehicle veh = Vehicle.FromStages(mission);
         Dictionary<string, float> desOrbit = mission.Orbit;
 
-        double azimuth = Math.Asin(Math.Cos(Utils.DegToRad(desOrbit["inc"])) / Math.Cos(Utils.DegToRad(lat)));
-
-        var initial = new Dictionary<string, double>
-        {
-            {"altitude", 45 },
-            {"fpa", 50 },
-            {"speed", 2400 },
-            {"latitude", lat},
-            {"longitude", 0 },
-            {"heading", Utils.RadToDeg(azimuth) }
-        };
-
         Simulator sim = new Simulator();
-        sim.SetVesselStateFromLatLong(initial);
+        sim.LoadSimVarsFromJson(simPath);
         sim.SetVehicle(veh);
-        sim.SetTimeStep(0.1f);
 
         Target tgt = new Target();
         tgt.SetTarget(desOrbit, sim);
@@ -94,7 +82,7 @@ class Handler
             {
                 
                 sim.StepForward();
-                Utils.PrintVars(guidance, sim, mission, tgt, veh);
+                Utils.PrintVars(guidance, sim, tgt, veh);
 
                 if (sim.State.mass < sim.SimVehicle.CurrentStage.MassDry)
                 {
@@ -128,3 +116,4 @@ class Handler
         }
     }
 }
+

@@ -31,7 +31,7 @@ public class UpfgTests
         };
 
         Simulator sim = new Simulator();
-        sim.SetVesselStateFromLatLong(initial);
+        sim.SetVesselStateFromLatLongAir(initial);
         sim.SetVehicle(veh);
         sim.SetTimeStep(0.1f);
 
@@ -70,7 +70,7 @@ public class UpfgTests
         };
 
         Simulator sim = new Simulator();
-        sim.SetVesselStateFromLatLong(initial);
+        sim.SetVesselStateFromLatLongAir(initial);
         sim.SetVehicle(veh);
         sim.SetTimeStep(0.1f);
 
