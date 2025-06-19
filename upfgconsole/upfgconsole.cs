@@ -36,7 +36,7 @@ class Handler
         sim.LoadSimVarsFromJson(simPath);
         sim.SetVehicle(veh);
 
-        Target tgt = new Target();
+        UPFGTarget tgt = new UPFGTarget();
         tgt.SetTarget(desOrbit, sim);
 
         Upfg guidance = new Upfg();

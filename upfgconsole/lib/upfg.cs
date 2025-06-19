@@ -24,7 +24,7 @@ public class Upfg
         ConvergenceFlag = false;
         Steering = new Vector3(0, 0, 0);
     }
-    public void SetTarget(Target target)
+    public void SetTarget(UPFGTarget target)
     {
         Target = target;
     }

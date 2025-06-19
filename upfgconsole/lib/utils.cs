@@ -53,7 +53,7 @@ public static class Utils
         return azimuth;
     }
 
-    public static double CalcLaunchAzimuthRotating(Simulator sim, Target tgt)
+    public static double CalcLaunchAzimuthRotating(Simulator sim, UPFGTarget tgt)
     {
         // tgt.inc and sim.State.Misc["latitude"] are already in radians
         double azimuth = Math.Asin(Math.Cos(tgt.inc) / Math.Cos(sim.State.Misc["latitude"]));
@@ -378,7 +378,7 @@ public static class Utils
         guidance.PrevVals.rbias.X, guidance.PrevVals.rbias.Y, guidance.PrevVals.rbias.Z);
     }
 
-    public static void PrintVars(Upfg guidance, Simulator sim, Target tgt, Vehicle veh)
+    public static void PrintVars(Upfg guidance, Simulator sim, UPFGTarget tgt, Vehicle veh)
     {
 
         Console.Clear();
