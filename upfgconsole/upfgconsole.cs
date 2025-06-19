@@ -24,7 +24,6 @@ class Handler
     {
         object simLock = new object();  // Lock to protect shared state
 
-        float lat = 28.5f;
         string missionPath = "/home/oli/code/csharp/upfgconsole/upfgconsole/saturnV.json";
         string simPath = "/home/oli/code/csharp/upfgconsole/upfgconsole/simvars.json";
 
@@ -37,10 +36,17 @@ class Handler
         sim.SetVehicle(veh);
 
         UPFGTarget tgt = new UPFGTarget();
-        tgt.SetTarget(desOrbit, sim);
+        tgt.Set(desOrbit, sim);
 
-        Upfg guidance = new Upfg();
-        guidance.Setup(sim, tgt);
+        Dictionary<GuidanceMode, IGuidanceTarget> targets = new Dictionary<GuidanceMode, IGuidanceTarget>
+        {
+            { GuidanceMode.Prelaunch, tgt },
+            { GuidanceMode.Ascent, tgt },
+            { GuidanceMode.OrbitInsertion, tgt }
+        };
+
+        GuidanceProgram ascentProgram = new GuidanceProgram(targets, veh, sim);
+
 
         double trem = 2;
         bool guidanceFailed = false;
@@ -54,35 +60,34 @@ class Handler
             {
                 lock (simLock)
                 {
-                    guidance.Run(sim, tgt, veh);
-                    
+                    ascentProgram.UpdateVehicle(veh);
+                    ascentProgram.Step();
 
-                    if (guidance.PrevVals.tgo < trem || guidanceIter > 1000)
+                    sim.SetGuidance(ascentProgram.GetCurrentSteering(), veh.Stages[0]);
+                    Console.WriteLine(ascentProgram.GetCurrentSteering().X);
+                    Console.WriteLine(ascentProgram.GetCurrentSteering().Y);
+                    Console.WriteLine(ascentProgram.GetCurrentSteering().Z);
+                    Console.WriteLine(ascentProgram.ActiveMode.ToString());
+                    if (ascentProgram.ActiveMode is GuidanceMode.Idle)
                     {
-                        guidanceFailed = true;
-                        Console.WriteLine("GUIDANCE FAIL");
-                        break;
-                    }
-
-                    if (guidance.ConvergenceFlag)
-                    {
-                        sim.SetGuidance(guidance.Steering, veh.Stages[0]);
+                        Console.WriteLine("Guidance program completed successfully.");
+                        break; // Exit the loop if guidance is complete
                     }
                 }
 
-                await Task.Delay(1000); // guidance runs slower
+                await Task.Delay(200); // guidance runs slower
                 guidanceIter++;
             }
         });
 
         // Physics loop (fast)
-        while (!guidanceFailed && guidance.PrevVals.tgo > trem)
+        while (true)
         {
             lock (simLock)
             {
                 
                 sim.StepForward();
-                Utils.PrintVars(guidance, sim, tgt, veh);
+                // Utils.PrintVars(sim, tgt, veh);
 
                 if (sim.State.mass < sim.SimVehicle.CurrentStage.MassDry)
                 {
@@ -101,7 +106,7 @@ class Handler
                 }
             }
 
-            await Task.Delay((int)(sim.dt * 1000f));
+            await Task.Delay((int)(sim.dt * 1000f / sim.simspeed));
     
         }
 

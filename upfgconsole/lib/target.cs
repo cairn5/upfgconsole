@@ -13,7 +13,7 @@ using ScottPlot.LayoutEngines;
 using ScottPlot.Rendering.RenderActions;
 using System.Diagnostics.Tracing;
 
-public class UPFGTarget
+public class UPFGTarget: IGuidanceTarget
 {
     public float radius { get; private set; } = 0;
     public float velocity { get; private set; } = 0;
@@ -25,7 +25,7 @@ public class UPFGTarget
     public float pe { get; private set; } = 0;
     public float ecc { get; private set; } = 0;
 
-    public void SetTarget(Dictionary<string, float> targetParams, Simulator sim)
+    public void Set(Dictionary<string, float> targetParams, Simulator sim)
     {
         SimState state = sim.State;
 

@@ -11,22 +11,22 @@ namespace lib;
 
 public class GravityTurn
 {
-    public double pitchAngle { get; set; } = 0.0f;
-    public double pitchTime { get; set; } = 0.0f;
+    public double pitchAngle { get; set; } = Utils.DegToRad(1.5f);
+    public double pitchTime { get; set; } = 20.0f;
     public double heading { get; set; } = -1;
     public int guidanceMode { get; set; } = 0; // 0 = straight up, 1 = initial pitchover, 2 = following ECEF prograde
     public Vector3 guidance { get; set; } = Vector3.Zero;
-    public bool initflag { get; set; } = false;
+    public bool SetupFlag { get; set; } = false;
 
-    public void Run(Simulator sim, Target target)
+    public void step(Simulator sim, UPFGTarget target)
     {
 
-        if (!initflag)
+        if (!SetupFlag)
         {
-            this.pitchAngle = pitchAngle;
-            this.pitchTime = pitchTime;
+            // this.pitchAngle = pitchAngle;
+            // this.pitchTime = pitchTime;
             heading = Utils.CalcLaunchAzimuthRotating(sim, target);
-            initflag = true;
+            SetupFlag = true;
         }
 
         if (guidanceMode == 0)
@@ -45,16 +45,25 @@ public class GravityTurn
             // Rotate up vector by pitch angle, then rotate to desired heading
             Vector3 north = Utils.GetNorthUnit(sim.State.r);
             Vector3 east = Utils.GetEastUnit(sim.State.r);
-            Vector3 up = Vector3.Cross(north, east);
-            Vector3 transformedVector = Utils.RodriguesRotation(north, east, (float)pitchAngle);
+            Vector3 up = -Vector3.Cross(north, east);
+            Vector3 transformedVector = Utils.RodriguesRotation(up, east, -(float)pitchAngle);
 
-            guidance = Utils.RodriguesRotation(transformedVector, up, (float)(heading));
+            guidance = Utils.RodriguesRotation(transformedVector, up, -(float)(heading));
+
+            // If dot product betwen thrust vector and velocity vector is less than value, hold prograde
+            Vector3 localVelNorm = Vector3.Normalize(Utils.ECItoECEF(sim.State).v);
+
+            float dotProduct = Vector3.Dot(guidance, localVelNorm);
+            if (dotProduct > 0.9995f)
+            {
+                guidanceMode = 2;
+            }
 
         }
 
         if (guidanceMode == 2)
         {
-            guidance = Utils.ECItoECEF(sim.State).v;
+            guidance = Vector3.Normalize(Utils.ECItoECEF(sim.State).v);
         }
 
     }

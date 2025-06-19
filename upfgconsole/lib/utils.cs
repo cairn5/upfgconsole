@@ -378,11 +378,8 @@ public static class Utils
         guidance.PrevVals.rbias.X, guidance.PrevVals.rbias.Y, guidance.PrevVals.rbias.Z);
     }
 
-    public static void PrintVars(Upfg guidance, Simulator sim, UPFGTarget tgt, Vehicle veh)
+    public static void PrintUPFG(Upfg guidance, Simulator sim)
     {
-
-        Console.Clear();
-        Console.CursorVisible = false;
 
         Console.WriteLine("--------------------GUIDANCE PARAMETERS -------------------");
         var upfgTable = new ConsoleTable("TB", "TGO", "VGO", "RGO", "RGRAV", "RBIAS");
@@ -395,6 +392,13 @@ public static class Utils
             guidance.PrevVals.rbias.Length().ToString("F1").PadLeft(6)
         );
         upfgTable.Write(Format.Alternative);
+    }
+
+    public static void PrintVars(Simulator sim, UPFGTarget tgt, Vehicle veh)
+    {
+
+        Console.Clear();
+        Console.CursorVisible = false;
 
         Console.WriteLine("-------- ORBITAL ELEMENTS --------");
         var transposedTable = new ConsoleTable(" ", "ACTUAL", "TARGET");
@@ -424,7 +428,7 @@ public static class Utils
         Console.WriteLine("UPFG STATUS:");
 
         Console.SetCursorPosition(40, 8);
-        if (guidance.ConvergenceFlag)
+        if (false)
         {
             Console.WriteLine("CONVERGED");
         }
@@ -432,10 +436,10 @@ public static class Utils
         {
             Console.WriteLine("UPFG CONVERGING");
         }
-        Console.SetCursorPosition(40,9);
+        Console.SetCursorPosition(40, 9);
         Console.WriteLine("-----------");
 
-        Console.SetCursorPosition(40,11);
+        Console.SetCursorPosition(40, 11);
         Console.WriteLine("VEHICLE STATUS:");
 
         Console.SetCursorPosition(40, 13);

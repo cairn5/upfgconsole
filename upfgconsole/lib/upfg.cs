@@ -9,13 +9,45 @@ using ScottPlot.LayoutEngines;
 
 namespace lib;
 
+
+public class UPFGState
+{
+    public Dictionary<string, double> Cser { get; private set; } = new Dictionary<string, double>();
+    public Vector3 rbias { get; private set; }
+    public Vector3 rd { get; private set; }
+    public Vector3 rgrav { get; private set; }
+    public double tb { get; private set; }
+    public double time { get; private set; }
+    public double tgo { get; private set; }
+    public Vector3 v { get; private set; }
+    public Vector3 vgo { get; private set; }
+
+    public void SetVals(Dictionary<string, double> cserin,
+                        Vector3 rbiasin, Vector3 rdin, Vector3 rgravin,
+                        double tbin, double timein, double tgoin, Vector3 vin, Vector3 vgoin)
+    {
+        Cser = cserin;
+        rbias = rbiasin;
+        rd = rdin;
+        rgrav = rgravin;
+        tb = tbin;
+        time = timein;
+        tgo = tgoin;
+        v = vin;
+        vgo = vgoin;
+                                
+    }
+
+}
+
 public class Upfg
 {
     public UPFGState PrevVals { get; private set; }
     public UPFGState CurrentVals { get; private set; }
     public bool ConvergenceFlag { get; private set; }
+    public bool SetupFlag { get; private set; } = false;
     public Vector3 Steering { get; private set; }
-    public UPFGTarget Target { get; private set; }
+    public UPFGTarget? Target { get; private set; } = null;
 
     public Upfg()
     {
@@ -29,17 +61,30 @@ public class Upfg
         Target = target;
     }
 
+    public void step(Simulator sim, Vehicle vehicle, UPFGTarget target)
+    {
+        if (!SetupFlag)
+        {
+            SetTarget(target);
+            Setup(sim);
+            SetupFlag = true;
+        } 
+        else
+        {
+            Run(sim, vehicle);
+        }
+    }
+
     public void Setup(Simulator sim)
     {
+        if (Target == null)
+            throw new InvalidOperationException("UPFGTarget must be set before calling Setup.");
         Vector3 curR = sim.State.r;
         Vector3 curV = sim.State.v;
-
         Vector3 unitvec = Utils.RodriguesRotation(curR, Target.normal, Utils.DegToRad(20));
         Vector3 desR = unitvec / unitvec.Length() * Target.radius;
-
         Vector3 tempvec = Vector3.Cross(Target.normal, desR);
         Vector3 tgoV = Target.velocity * (tempvec / tempvec.Length()) - curV;
-
         Dictionary<string, double> cser = new Dictionary<string, double>
         {
             {"dtcp", 0 },
@@ -48,17 +93,17 @@ public class Upfg
             {"D", 0 },
             {"E", 0 }
         };
-
-        PrevVals.SetVals(cser, new Vector3(0, 0, 0), desR, (float)0.5 * Utils.CalcGravVector(Constants.Mu, curR), 0, sim.State.t, 100, curV, tgoV);
+        PrevVals.SetVals(cser, new Vector3(0, 0, 0), desR, (float)0.5 * Utils.CalcGravVector(Constants.Mu, curR), sim.State.t, sim.State.t, 100, curV, tgoV);
     }
 
     public void Run(Simulator sim, Vehicle vehicle)
     {
+        if (Target == null)
+            throw new InvalidOperationException("UPFGTarget must be set before calling Run.");
         double gamma = Target.fpa;
         Vector3 iy = -Target.normal;
         double rdval = Target.radius;
         double vdval = Target.velocity;
-
         Vector3 r_ = sim.State.r;
         Vector3 v_ = sim.State.v;
         double t = sim.State.t;
@@ -83,7 +128,7 @@ public class Upfg
         List<double> aT = new List<double>();
         List<double> tu = new List<double>();
         List<double> tb = new List<double>();
-                
+
         for (int i = 0; i < n; i++)
         {
             var stage = vehicle.Stages[i];
@@ -282,36 +327,6 @@ public class Upfg
             // Console.WriteLine("UPFG CONVERGED");
         }
         ;
-    }
-
-}
-
-public class UPFGState
-{
-    public Dictionary<string, double> Cser { get; private set; }
-    public Vector3 rbias { get; private set; }
-    public Vector3 rd { get; private set; }
-    public Vector3 rgrav { get; private set; }
-    public double tb { get; private set; }
-    public double time { get; private set; }
-    public double tgo { get; private set; }
-    public Vector3 v { get; private set; }
-    public Vector3 vgo { get; private set; }
-
-    public void SetVals(Dictionary<string, double> cserin,
-                        Vector3 rbiasin, Vector3 rdin, Vector3 rgravin,
-                        double tbin, double timein, double tgoin, Vector3 vin, Vector3 vgoin)
-    {
-        Cser = cserin;
-        rbias = rbiasin;
-        rd = rdin;
-        rgrav = rgravin;
-        tb = tbin;
-        time = timein;
-        tgo = tgoin;
-        v = vin;
-        vgo = vgoin;
-                                
     }
 
 }

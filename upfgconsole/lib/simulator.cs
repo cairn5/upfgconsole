@@ -20,6 +20,7 @@ public class Simulator
     public SimState State { get; private set; }
     public Dictionary<string, Vector3> Iteration { get; private set; }
     public float dt { get; private set; }
+    public double simspeed { get; private set; }
     public Vector3 ThrustVector { get; private set; }
     public List<SimState> History { get; set; }
 
@@ -34,7 +35,7 @@ public class Simulator
         State.CartToKepler();
 
         Iteration = new Dictionary<string, Vector3>();
-        dt = 1;
+       
         ThrustVector = new Vector3(0, 0, 0);
 
         History = new List<SimState>();
@@ -154,13 +155,15 @@ public class Simulator
         double startGround = root.GetProperty("startGround").GetDouble();
         double airVel = root.GetProperty("airVel").GetDouble();
         double airFpa = root.GetProperty("airFpa").GetDouble();
+        float dtlocal = root.GetProperty("dt").GetSingle();
+        double simspeedlocal = root.GetProperty("speed").GetDouble();
 
         // Set initial state using these values
         // Convert degrees to radians where needed
         double latitude = Utils.DegToRad(startLat);
         double longitude = Utils.DegToRad(startLong);
 
-        if (startGround == 1)
+        if (startGround == 0)
         {
             double altitude = startGround; // Assuming this is in km
             double speed = airVel;
@@ -178,7 +181,7 @@ public class Simulator
             };
             SetVesselStateFromLatLongAir(initial);
         }
-        if (startGround == 0)
+        if (startGround == 1)
         {
 
             var initial = new Dictionary<string, double>
@@ -188,7 +191,8 @@ public class Simulator
             };
             SetVesselStateFromLatLongGround(initial);
         }
-        SetTimeStep(dt);
+        SetTimeStep(dtlocal);
+        this.simspeed = simspeedlocal;
     }
         
 
