@@ -15,6 +15,7 @@ public class Upfg
     public UPFGState CurrentVals { get; private set; }
     public bool ConvergenceFlag { get; private set; }
     public Vector3 Steering { get; private set; }
+    public UPFGTarget Target { get; private set; }
 
     public Upfg()
     {
@@ -23,17 +24,21 @@ public class Upfg
         ConvergenceFlag = false;
         Steering = new Vector3(0, 0, 0);
     }
+    public void SetTarget(Target target)
+    {
+        Target = target;
+    }
 
-    public void Setup(Simulator sim, Target mission)
+    public void Setup(Simulator sim)
     {
         Vector3 curR = sim.State.r;
         Vector3 curV = sim.State.v;
 
-        Vector3 unitvec = Utils.RodriguesRotation(curR, mission.normal, Utils.DegToRad(20));
-        Vector3 desR = unitvec / unitvec.Length() * mission.radius;
+        Vector3 unitvec = Utils.RodriguesRotation(curR, Target.normal, Utils.DegToRad(20));
+        Vector3 desR = unitvec / unitvec.Length() * Target.radius;
 
-        Vector3 tempvec = Vector3.Cross(mission.normal, desR);
-        Vector3 tgoV = mission.velocity * (tempvec / tempvec.Length()) - curV;
+        Vector3 tempvec = Vector3.Cross(Target.normal, desR);
+        Vector3 tgoV = Target.velocity * (tempvec / tempvec.Length()) - curV;
 
         Dictionary<string, double> cser = new Dictionary<string, double>
         {
@@ -47,12 +52,12 @@ public class Upfg
         PrevVals.SetVals(cser, new Vector3(0, 0, 0), desR, (float)0.5 * Utils.CalcGravVector(Constants.Mu, curR), 0, sim.State.t, 100, curV, tgoV);
     }
 
-    public void Run(Simulator sim, Target mission, Vehicle vehicle)
+    public void Run(Simulator sim, Vehicle vehicle)
     {
-        double gamma = mission.fpa;
-        Vector3 iy = -mission.normal;
-        double rdval = mission.radius;
-        double vdval = mission.velocity;
+        double gamma = Target.fpa;
+        Vector3 iy = -Target.normal;
+        double rdval = Target.radius;
+        double vdval = Target.velocity;
 
         Vector3 r_ = sim.State.r;
         Vector3 v_ = sim.State.v;

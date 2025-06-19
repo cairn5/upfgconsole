@@ -13,7 +13,7 @@ using ScottPlot.LayoutEngines;
 using ScottPlot.Rendering.RenderActions;
 using System.Diagnostics.Tracing;
 
-public class Target
+public class UPFGTarget
 {
     public float radius { get; private set; } = 0;
     public float velocity { get; private set; } = 0;
