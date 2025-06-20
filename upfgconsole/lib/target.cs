@@ -55,7 +55,11 @@ public class UPFGTarget: IGuidanceTarget
         {
 
             (float b, float c) = Utils.CalculateSphericalAAS((float)state.Misc["latitude"], 1.57f, inc);
-            LAN = LAN = (float)state.Misc["longitude"] - b;
+            LAN = (float)state.Misc["longitude"] - b;
+            if (float.IsNaN(LAN))
+            {
+                LAN = 0;
+            }
         }
 
         normal = Utils.CalcOrbitNormal(inc, LAN);

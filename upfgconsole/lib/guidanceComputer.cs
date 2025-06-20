@@ -37,26 +37,31 @@ public class UpfgMode : IGuidanceMode
 {
     private Upfg upfg = new Upfg();
     public bool Converged => upfg.ConvergenceFlag;
+    public Vector3 PrevSteering = new();
 
     public GuidanceMode? Step(Simulator sim, IGuidanceTarget tgt, Vehicle veh)
     {
         if (tgt is UPFGTarget upfgTarget)
         {
+            PrevSteering = sim.ThrustVector;
             upfg.step(sim, veh, upfgTarget);
             Utils.PrintUPFG(upfg, sim);
             Console.WriteLine(upfg.PrevVals.tgo);
-            if (upfg.PrevVals.tgo < 5)
-            {
-                return GuidanceMode.FinalBurn;
-            }
-            else
-            {
-                return null;
-            }
+
+            if (upfg.PrevVals.tgo < 40) return GuidanceMode.FinalBurn;
+            else return null;
         }
         else return null;
     }
-    public Vector3 GetSteering() => upfg.Steering;
+    public Vector3 GetSteering()
+    {
+        if (upfg.ConvergenceFlag)
+        {
+            return upfg.Steering;
+        }
+        else return PrevSteering;
+
+    }
 }
 
 public class FinalMode : IGuidanceMode
@@ -109,7 +114,7 @@ public class GravityTurnMode : IGuidanceMode
         else
             throw new ArgumentException("GravityTurnMode requires a UPFGTarget as its target.");
         // TODO: Add convergence logic and return next mode if needed
-        if (sim.State.Misc["altitude"] > 50e3)
+        if (sim.State.Misc["altitude"] > 5e3)
         {
             return GuidanceMode.OrbitInsertion; //advance to next mode if altitude is above 50km
         }
@@ -124,11 +129,9 @@ public class GuidanceProgram
 {
     public Dictionary<GuidanceMode, IGuidanceMode> Modes { get; } = new();
     public Dictionary<GuidanceMode, IGuidanceTarget> Targets { get; } = new();
-    public HashSet<GuidanceMode> RunningModes { get; } = new();
     public GuidanceMode ActiveMode { get; set; }
     public Vehicle Vehicle { get; set; }
     public Simulator Simulator { get; set; }
-    public bool IsComplete { get; set; } = false;
 
     public GuidanceProgram(Dictionary<GuidanceMode, IGuidanceTarget> targets, Vehicle veh, Simulator sim)
     {
@@ -137,65 +140,27 @@ public class GuidanceProgram
         Modes[GuidanceMode.Prelaunch] = new PreLaunchMode();
         Modes[GuidanceMode.Ascent] = new GravityTurnMode();
         Modes[GuidanceMode.OrbitInsertion] = new UpfgMode();
-        // Add more modes as needed
+        Modes[GuidanceMode.FinalBurn] = new FinalMode();
+        Modes[GuidanceMode.Idle] = new IdleMode();
         Targets = targets;
-        RunningModes.Add(GuidanceMode.Prelaunch);
-        RunningModes.Add(GuidanceMode.Ascent);
         ActiveMode = GuidanceMode.Prelaunch;
-
     }
 
     public void Step()
     {
-        var toAdd = new List<GuidanceMode>();
-        var toRemove = new List<GuidanceMode>();
-        foreach (var modeKey in RunningModes)
+        var mode = Modes[ActiveMode];
+        var tgt = Targets.ContainsKey(ActiveMode) ? Targets[ActiveMode] : null;
+        var nextMode = mode.Step(Simulator, tgt, Vehicle);
+
+        if (nextMode.HasValue && Modes.ContainsKey(nextMode.Value))
         {
-            var mode = Modes[modeKey];
-            var tgt = Targets[modeKey];
-            var nextMode = mode.Step(Simulator, tgt, Vehicle);
-
-            if (nextMode.HasValue && RunningModes.Contains(nextMode.Value))
-            {
-                // Switch active mode and mark previous mode for removal
-                ActiveMode = nextMode.Value;
-                toRemove.Add(modeKey);
-            }
-
+            ActiveMode = nextMode.Value;
         }
-
-        foreach (var m in toAdd) RunningModes.Add(m);
-        foreach (var m in toRemove) RunningModes.Remove(m);
-
-        if (Simulator.State.Misc["altitude"] > 40e3 && !RunningModes.Contains(GuidanceMode.OrbitInsertion))
-        {
-            // If altitude is above 40km, add OrbitInsertion mode if not already present
-            // This is a condition to ensure we can transition to orbit insertion
-            RunningModes.Add(GuidanceMode.OrbitInsertion);
-
-        }
-        if (ActiveMode is GuidanceMode.OrbitInsertion)
-        {
-            RunningModes.Add(Guida)
-        }
-        {
-            // If altitude is above 40km, add OrbitInsertion mode if not already present
-            // This is a condition to ensure we can transition to orbit insertion
-            RunningModes.Add(GuidanceMode.OrbitInsertion);
-
-        }
-
     }
 
-    public void UpdateVehicle(Vehicle veh)
-    {
-        Vehicle = veh;
-    }
+    public void UpdateVehicle(Vehicle veh) => Vehicle = veh;
 
-    public Vector3 GetCurrentSteering()
-    {
-        return Modes[ActiveMode].GetSteering();
-    }
+    public Vector3 GetCurrentSteering() => Modes[ActiveMode].GetSteering();
 }
 
 

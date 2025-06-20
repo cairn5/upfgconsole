@@ -22,7 +22,7 @@ public class TargetTests
             {"speed", 7800}
         });
 
-        var target = new Target(); // Assume this is your class
+        var target = new UPFGTarget(); // Assume this is your class
 
         var targetParams = new Dictionary<string, float>
         {
@@ -33,7 +33,7 @@ public class TargetTests
         };
 
         // Act
-        target.SetTarget(targetParams, sim);
+        target.Set(targetParams, sim);
 
         // Assert
         float expectedRadius = 200_000f + Constants.Re;
@@ -59,7 +59,7 @@ public class TargetTests
             {"speed", 7800}
         });
 
-        var target = new Target();
+        var target = new UPFGTarget();
 
         var targetParams = new Dictionary<string, float>
         {
@@ -70,7 +70,7 @@ public class TargetTests
         };
 
         // Act
-        target.SetTarget(targetParams, sim);
+        target.Set(targetParams, sim);
 
         // Assert
         Assert.Equal(-Math.PI/2, target.LAN, 5);

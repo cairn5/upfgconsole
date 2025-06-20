@@ -12,7 +12,7 @@ namespace lib;
 public class GravityTurn
 {
     public double pitchAngle { get; set; } = Utils.DegToRad(1.5f);
-    public double pitchTime { get; set; } = 20.0f;
+    public double pitchTime { get; set; } = 17.0f;
     public double heading { get; set; } = -1;
     public int guidanceMode { get; set; } = 0; // 0 = straight up, 1 = initial pitchover, 2 = following ECEF prograde
     public Vector3 guidance { get; set; } = Vector3.Zero;
@@ -46,7 +46,7 @@ public class GravityTurn
             Vector3 north = Utils.GetNorthUnit(sim.State.r);
             Vector3 east = Utils.GetEastUnit(sim.State.r);
             Vector3 up = -Vector3.Cross(north, east);
-            Vector3 transformedVector = Utils.RodriguesRotation(up, east, -(float)pitchAngle);
+            Vector3 transformedVector = Utils.RodriguesRotation(up, east, (float)pitchAngle);
 
             guidance = Utils.RodriguesRotation(transformedVector, up, -(float)(heading));
 

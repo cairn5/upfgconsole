@@ -24,7 +24,7 @@ class Handler
     {
         object simLock = new object();  // Lock to protect shared state
 
-        string missionPath = "/home/oli/code/csharp/upfgconsole/upfgconsole/saturnV.json";
+        string missionPath = "/home/oli/code/csharp/upfgconsole/upfgconsole/shuttle.json";
         string simPath = "/home/oli/code/csharp/upfgconsole/upfgconsole/simvars.json";
 
         MissionConfig mission = Utils.ReadMission(missionPath);
@@ -75,7 +75,7 @@ class Handler
                     }
                 }
 
-                await Task.Delay(200); // guidance runs slower
+                await Task.Delay((int)(0.5*100f)); // guidance runs slower
                 guidanceIter++;
             }
         });
@@ -106,13 +106,13 @@ class Handler
                 }
             }
 
-            await Task.Delay((int)(sim.dt * 1000f / sim.simspeed));
+            await Task.Delay((int)(sim.dt * 100f));
     
         }
 
         await guidanceTask;
 
-        if (!guidanceFailed)
+        if (guidanceFailed)
         {
             Utils.PlotTrajectory(sim);
             var kepler = sim.State.Kepler;

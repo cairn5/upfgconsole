@@ -119,118 +119,149 @@ public class Upfg
 
         // 1 - Initialization
         int n = vehicle.Stages.Count;
+        List<int> stageModes;
+        List<double> accelLimits, massFlows, exhaustVelocities, thrusts, thrustAccelerations, characteristicTimes, burnTimes;
+        InitializeStageParameters(vehicle, out stageModes, out accelLimits, out massFlows, out exhaustVelocities, out thrusts, out thrustAccelerations, out characteristicTimes, out burnTimes);
 
-        List<int> SM = new List<int>();
-        List<double> aL = new List<double>();
-        List<double> md = new List<double>();
-        List<double> ve = new List<double>();
-        List<double> fT = new List<double>();
-        List<double> aT = new List<double>();
-        List<double> tu = new List<double>();
-        List<double> tb = new List<double>();
+        // 2 - Accelerations
+        UpdateAccelerations(t, tp, v_, vprev, ref vgo, ref burnTimes, PrevVals.tb);
 
+        // 3 - Burn time calculation
+        List<double> Li;
+        List<double> tgoi;
+        double tgo;
+        ComputeBurnTimes(stageModes, thrusts, accelLimits, exhaustVelocities, thrustAccelerations, characteristicTimes, burnTimes, vgo, out Li, out tgoi, out tgo);
+
+        // 4 - Thrust integrals
+        List<double> Ji, Si, Qi, Pi;
+        double L, J, S, Q_, H, P;
+        ComputeThrustIntegrals(stageModes, Li, tgoi, characteristicTimes, exhaustVelocities, burnTimes, accelLimits, out Ji, out Si, out Qi, out Pi, out L, out J, out S, out Q_, out H, out P);
+
+        // 5 - Guidance vectors
+        Vector3 lambda_vec, rgo, iz, rgoxy, iF_, vthrust, rthrust, vbias;
+        double lambdade, phi, phidot, rgoz, rthrustMag;
+        Vector3 lambdadot;
+        ComputeGuidanceVectors(vgo, rd, r_, v_, tgo, rgrav, iy, S, L, J, Q_, H, P, rbias, out lambda_vec, out rgo, out iz, out rgoxy, out rgoz, out lambdade, out lambdadot, out iF_, out phi, out phidot, out vthrust, out rthrust, out vbias);
+        rbias = rgo - rthrust;
+
+        // 6 - Up and East vectors
+        Vector3 UP = Vector3.Normalize(r_);
+        Vector3 EAST = Vector3.Normalize(Vector3.Cross(new Vector3(0, 0, 1), UP));
+
+        // 7 - External estimation routine
+        Vector3 rc1 = r_ - 0.1f * rthrust - (float)(tgo / 30.0) * vthrust;
+        Vector3 vc1 = v_ + 1.2f * rthrust / (float)tgo - 0.1f * vthrust;
+        Vector3 rend, vend;
+        EstimateExternalCorrections(rc1, vc1, tgo, cser, out rend, out vend, out cser);
+        rgrav = rend - rc1 - vc1 * (float)tgo;
+        Vector3 vgrav = vend - vc1;
+
+        // 8 - Update target vectors
+        UpdateTargetVectors(r_, v_, tgo, rgrav, rthrust, iy, rdval, gamma, vdval, vgrav, vbias, out rd, out vgo);
+
+        // Finalize
+        CurrentVals.SetVals(cser, rbias, rd, rgrav, PrevVals.tb + (t - tp), t, tgo, v_, vgo);
+        CheckConvergence();
+        PrevVals = CurrentVals;
+        Steering = iF_;
+        if (iF_.X < 0)
+        {
+            Console.WriteLine("X NEG");
+        }
+    }
+
+    private void InitializeStageParameters(Vehicle vehicle, out List<int> stageModes, out List<double> accelLimits, out List<double> massFlows, out List<double> exhaustVelocities, out List<double> thrusts, out List<double> thrustAccelerations, out List<double> characteristicTimes, out List<double> burnTimes)
+    {
+        int n = vehicle.Stages.Count;
+        stageModes = new List<int>();
+        accelLimits = new List<double>();
+        massFlows = new List<double>();
+        exhaustVelocities = new List<double>();
+        thrusts = new List<double>();
+        thrustAccelerations = new List<double>();
+        characteristicTimes = new List<double>();
+        burnTimes = new List<double>();
         for (int i = 0; i < n; i++)
         {
             var stage = vehicle.Stages[i];
-
             double massflow = stage.Thrust / (stage.Isp * Constants.g0);
-
-            SM.Add(stage.Mode);
-            aL.Add(stage.GLim * Constants.g0);
-            fT.Add(stage.Thrust);
-            md.Add(massflow);
-            ve.Add(stage.Isp * Constants.g0);
-            aT.Add(stage.Thrust / stage.MassTotal);
-            tu.Add(ve[i] / aT[i]);
-            tb.Add((stage.MassTotal - stage.MassDry) / massflow);
+            stageModes.Add(stage.Mode);
+            accelLimits.Add(stage.GLim * Constants.g0);
+            thrusts.Add(stage.Thrust);
+            massFlows.Add(massflow);
+            exhaustVelocities.Add(stage.Isp * Constants.g0);
+            thrustAccelerations.Add(stage.Thrust / stage.MassTotal);
+            characteristicTimes.Add(exhaustVelocities[i] / thrustAccelerations[i]);
+            burnTimes.Add((stage.MassTotal - stage.MassDry) / massflow);
         }
+    }
 
-        // 2 accelerations
+    private void UpdateAccelerations(double t, double tp, Vector3 v_, Vector3 vprev, ref Vector3 vgo, ref List<double> burnTimes, double prevBurnTime)
+    {
         double dt = t - tp;
         Vector3 dvsensed = v_ - vprev;
         vgo -= dvsensed;
-        tb[0] -= PrevVals.tb;
+        burnTimes[0] -= prevBurnTime;
+    }
 
-        // 3 burn time
-        // double[] aT = new double[n];
-        // double[] tu = new double[n];
-
-        if (SM[0] == 1)
-        {
-            aT[0] = fT[0] / m;
-        }
-        else if (SM[0] == 2)
-        {
-            aT[0] = aL[0];
-        }
-
-        tu[0] = ve[0] / aT[0];
+    private void ComputeBurnTimes(List<int> stageModes, List<double> thrusts, List<double> accelLimits, List<double> exhaustVelocities, List<double> thrustAccelerations, List<double> characteristicTimes, List<double> burnTimes, Vector3 vgo, out List<double> Li, out List<double> tgoi, out double tgo)
+    {
+        int n = stageModes.Count;
+        Li = new List<double>();
         double L = 0;
-        List<double> Li = new List<double>();
-
         for (int i = 0; i < n - 1; i++)
         {
-            if (SM[i] == 1)
-                Li.Add(ve[i] * Math.Log(tu[i] / (tu[i] - tb[i])));
-            else if (SM[i] == 2)
-                Li.Add(aL[i] * tb[i]);
-
+            if (stageModes[i] == 1)
+                Li.Add(exhaustVelocities[i] * Math.Log(characteristicTimes[i] / (characteristicTimes[i] - burnTimes[i])));
+            else if (stageModes[i] == 2)
+                Li.Add(accelLimits[i] * burnTimes[i]);
             L += Li[i];
         }
-
         Li.Add((vgo).Length() - L);
-
-        List<double> tgoi = new List<double>();
+        tgoi = new List<double>();
         for (int i = 0; i < n; i++)
         {
-            if (SM[0] == 1)
-                tb[i] = tu[i] * (1 - Math.Exp(-Li[i] / ve[i]));
-            else if (SM[0] == 2)
-                tb[i] = Li[i] / aL[i];
-
+            if (stageModes[0] == 1)
+                burnTimes[i] = characteristicTimes[i] * (1 - Math.Exp(-Li[i] / exhaustVelocities[i]));
+            else if (stageModes[0] == 2)
+                burnTimes[i] = Li[i] / accelLimits[i];
             if (i == 0)
-                tgoi.Add(tb[i]);
+                tgoi.Add(burnTimes[i]);
             else
-                tgoi.Add(tgoi[i - 1] + tb[i]);
+                tgoi.Add(tgoi[i - 1] + burnTimes[i]);
         }
+        tgo = tgoi[n - 1];
+    }
 
-        double tgo = tgoi[n - 1];
-
-        // 4 - Thrust integrals
-        L = 0;
-        double J = 0, S = 0, Q_ = 0, H = 0, P = 0;
-
-        List<double> Ji = new List<double>(new double[n]);
-        List<double> Si = new List<double>(new double[n]);
-        List<double> Qi = new List<double>(new double[n]);
-        List<double> Pi = new List<double>(new double[n]);
-
+    private void ComputeThrustIntegrals(List<int> stageModes, List<double> Li, List<double> tgoi, List<double> characteristicTimes, List<double> exhaustVelocities, List<double> burnTimes, List<double> accelLimits, out List<double> Ji, out List<double> Si, out List<double> Qi, out List<double> Pi, out double L, out double J, out double S, out double Q_, out double H, out double P)
+    {
+        int n = stageModes.Count;
+        Ji = new List<double>(new double[n]);
+        Si = new List<double>(new double[n]);
+        Qi = new List<double>(new double[n]);
+        Pi = new List<double>(new double[n]);
+        L = 0; J = 0; S = 0; Q_ = 0; H = 0; P = 0;
         for (int i = 0; i < n; i++)
         {
             double tgoi1 = (i == 0) ? 0 : tgoi[i - 1];
-
-            if (SM[i] == 1) // Constant thrust mode
+            if (stageModes[i] == 1)
             {
-                Ji[i] = tu[i] * Li[i] - ve[i] * tb[i];
-                Si[i] = -Ji[i] + Li[i] * tb[i];
-                Qi[i] = Si[i] * (tu[i] + tgoi1) - 0.5 * ve[i] * tb[i] * tb[i];
-                Pi[i] = Qi[i] * (tu[i] + tgoi1) - 0.5 * ve[i] * tb[i] * tb[i] * (tb[i] / 3 + tgoi1);
+                Ji[i] = characteristicTimes[i] * Li[i] - exhaustVelocities[i] * burnTimes[i];
+                Si[i] = -Ji[i] + Li[i] * burnTimes[i];
+                Qi[i] = Si[i] * (characteristicTimes[i] + tgoi1) - 0.5 * exhaustVelocities[i] * burnTimes[i] * burnTimes[i];
+                Pi[i] = Qi[i] * (characteristicTimes[i] + tgoi1) - 0.5 * exhaustVelocities[i] * burnTimes[i] * burnTimes[i] * (burnTimes[i] / 3 + tgoi1);
             }
-            else if (SM[i] == 2) // Constant acceleration mode
+            else if (stageModes[i] == 2)
             {
-                Ji[i] = 0.5 * Li[i] * tb[i];
+                Ji[i] = 0.5 * Li[i] * burnTimes[i];
                 Si[i] = Ji[i];
-                Qi[i] = Si[i] * (tb[i] / 3 + tgoi1);
+                Qi[i] = Si[i] * (burnTimes[i] / 3 + tgoi1);
                 Pi[i] = (1.0 / 6.0) * Si[i] * (tgoi[i] * tgoi[i] + 2 * tgoi[i] * tgoi1 + 3 * tgoi1 * tgoi1);
             }
-
-            // Common adjustments for both modes
             Ji[i] += Li[i] * tgoi1;
-            Si[i] += L * tb[i];
-            Qi[i] += J * tb[i];
-            Pi[i] += H * tb[i];
-
-            // Accumulate totals
+            Si[i] += L * burnTimes[i];
+            Qi[i] += J * burnTimes[i];
+            Pi[i] += H * burnTimes[i];
             L += Li[i];
             J += Ji[i];
             S += Si[i];
@@ -238,84 +269,54 @@ public class Upfg
             P += Pi[i];
             H = J * tgoi[i] - Q_;
         }
+    }
 
-
-        // 5
-        Vector3 lambda_vec = Vector3.Normalize(vgo);
-
+    private void ComputeGuidanceVectors(Vector3 vgo, Vector3 rd, Vector3 r_, Vector3 v_, double tgo, Vector3 rgrav, Vector3 iy, double S, double L, double J, double Q_, double H, double P, Vector3 rbias, out Vector3 lambda_vec, out Vector3 rgo, out Vector3 iz, out Vector3 rgoxy, out double rgoz, out double lambdade, out Vector3 lambdadot, out Vector3 iF_, out double phi, out double phidot, out Vector3 vthrust, out Vector3 rthrust, out Vector3 vbias)
+    {
+        lambda_vec = Vector3.Normalize(vgo);
         if (PrevVals.tgo > 0)
         {
             rgrav = (float)Math.Pow(tgo / PrevVals.tgo, 2) * rgrav;
         }
-
-        Vector3 rgo = rd - (r_ + v_ * (float)tgo + rgrav);
-
-        Vector3 iz = Vector3.Normalize(Vector3.Cross(rd, iy));
-        Vector3 rgoxy = rgo - Vector3.Dot(iz, rgo) * iz;
-        double rgoz = (S - Vector3.Dot(lambda_vec, rgoxy)) / Vector3.Dot(lambda_vec, iz);
+        rgo = rd - (r_ + v_ * (float)tgo + rgrav);
+        iz = Vector3.Normalize(Vector3.Cross(rd, iy));
+        rgoxy = rgo - Vector3.Dot(iz, rgo) * iz;
+        rgoz = (S - Vector3.Dot(lambda_vec, rgoxy)) / Vector3.Dot(lambda_vec, iz);
         rgo = rgoxy + (float)rgoz * iz + rbias;
-
-        double lambdade = Q_ - S * J / L;
-        Vector3 lambdadot = (rgo - (float)S * lambda_vec) / (float)lambdade;
-        Vector3 iF_ = lambda_vec - lambdadot * (float)(J / L);
+        lambdade = Q_ - S * J / L;
+        lambdadot = (rgo - (float)S * lambda_vec) / (float)lambdade;
+        iF_ = lambda_vec - lambdadot * (float)(J / L);
         iF_ = Vector3.Normalize(iF_);
-
-        double phi = Math.Acos(Math.Clamp(Vector3.Dot(iF_, lambda_vec) / (iF_.Length() * lambda_vec.Length()), -1.0, 1.0));
-        double phidot = -phi * L / J;
-
-        Vector3 vthrust = (float)(L - 0.5 * L * phi * phi - J * phi * phidot - 0.5 * H * phidot * phidot) * lambda_vec;
-
+        phi = Math.Acos(Math.Clamp(Vector3.Dot(iF_, lambda_vec) / (iF_.Length() * lambda_vec.Length()), -1.0, 1.0));
+        phidot = -phi * L / J;
+        vthrust = (float)(L - 0.5 * L * phi * phi - J * phi * phidot - 0.5 * H * phidot * phidot) * lambda_vec;
         double rthrustMag = S - 0.5 * S * phi * phi - Q_ * phi * phidot - 0.5 * P * phidot * phidot;
-        Vector3 rthrust = (float)rthrustMag * lambda_vec - ((float)(S * phi + Q_ * phidot) * (lambdadot / lambdadot.Length()));
+        rthrust = (float)rthrustMag * lambda_vec - ((float)(S * phi + Q_ * phidot) * (lambdadot / lambdadot.Length()));
+        vbias = vgo - vthrust;
+    }
 
-        Vector3 vbias = vgo - vthrust;
-        rbias = rgo - rthrust;
+    private void EstimateExternalCorrections(Vector3 rc1, Vector3 vc1, double tgo, Dictionary<string, double> cser, out Vector3 rend, out Vector3 vend, out Dictionary<string, double> cserOut)
+    {
+        (rend, vend, cserOut) = OrbitalMechanics.CSEroutine(rc1, vc1, tgo, cser);
+    }
 
-        // 6
-        Vector3 UP = Vector3.Normalize(r_);
-        Vector3 EAST = Vector3.Normalize(Vector3.Cross(new Vector3(0, 0, 1), UP));
-
-        // 7
-        Vector3 rc1 = r_ - 0.1f * rthrust - (float)(tgo / 30.0) * vthrust;
-        Vector3 vc1 = v_ + 1.2f * rthrust / (float)tgo - 0.1f * vthrust;
-
-        // External estimation routine
-        (Vector3 rend, Vector3 vend, Dictionary<string, double> cserOut) = OrbitalMechanics.CSEroutine(rc1, vc1, tgo, cser);
-        cser = cserOut;
-
-        rgrav = rend - rc1 - vc1 * (float)tgo;
-        Vector3 vgrav = vend - vc1;
-
-        // 8
+    private void UpdateTargetVectors(Vector3 r_, Vector3 v_, double tgo, Vector3 rgrav, Vector3 rthrust, Vector3 iy, double rdval, double gamma, double vdval, Vector3 vgrav, Vector3 vbias, out Vector3 rd, out Vector3 vgo)
+    {
         Vector3 rp = r_ + v_ * (float)tgo + rgrav + rthrust;
         rp -= Vector3.Dot(rp, iy) * iy;
-
         rd = (float)rdval * rp / rp.Length();
-
         Vector3 ix = Vector3.Normalize(rd);
-        iz = Vector3.Cross(ix, iy);
-
+        Vector3 iz = Vector3.Cross(ix, iy);
         Vector3 vv1 = new Vector3(ix.X, iy.X, iz.X);
         Vector3 vv2 = new Vector3(ix.Y, iy.Y, iz.Y);
         Vector3 vv3 = new Vector3(ix.Z, iy.Z, iz.Z);
-
         Vector3 vop = new Vector3((float)Math.Sin(gamma), 0, (float)Math.Cos(gamma));
         Vector3 vd = new Vector3(
             Vector3.Dot(vv1, vop),
             Vector3.Dot(vv2, vop),
             Vector3.Dot(vv3, vop)
         ) * (float)vdval;
-
         vgo = vd - v_ - vgrav + vbias;
-
-        CurrentVals.SetVals(cser, rbias, rd, rgrav, PrevVals.tb + dt, t, tgo, v_, vgo);
-
-        CheckConvergence();
-
-        PrevVals = CurrentVals;
-
-        Steering = iF_;
-
     }
 
     public void CheckConvergence()

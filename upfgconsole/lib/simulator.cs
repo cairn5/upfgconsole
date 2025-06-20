@@ -37,6 +37,7 @@ public class Simulator
         Iteration = new Dictionary<string, Vector3>();
        
         ThrustVector = new Vector3(0, 0, 0);
+        dt = 1;
 
         History = new List<SimState>();
 
@@ -157,6 +158,7 @@ public class Simulator
         double airFpa = root.GetProperty("airFpa").GetDouble();
         float dtlocal = root.GetProperty("dt").GetSingle();
         double simspeedlocal = root.GetProperty("speed").GetDouble();
+        double altitude = root.GetProperty("altitude").GetSingle();
 
         // Set initial state using these values
         // Convert degrees to radians where needed
@@ -165,7 +167,6 @@ public class Simulator
 
         if (startGround == 0)
         {
-            double altitude = startGround; // Assuming this is in km
             double speed = airVel;
             double fpa = airFpa; // Flight path angle in degrees
             double heading = 90; // Default east, can be parameterized
