@@ -153,13 +153,14 @@ public class Upfg
         double tgo;
         ComputeBurnTimes(stageModes, thrusts, accelLimits, exhaustVelocities, thrustAccelerations, characteristicTimes, burnTimes, vgo, out Li, out L, out tgoi, out tgo);
 
-        // //Check that we don't have too many stages
-        // if (L > vgo.Length())
-        // {
-        //     vehicle.Stages.RemoveAt(vehicle.Stages.Count - 1);
-        //     Run(sim, vehicle);
-        //     return;
-        // }
+        //Check that we don't have too many stages
+        if (L > vgo.Length())
+        {
+            var clonedVeh = (Vehicle)vehicle.Clone();
+            clonedVeh.Stages.RemoveAt(clonedVeh.Stages.Count - 1);
+            Run(sim, clonedVeh);
+            return;
+        }
 
         // 4 - Thrust integrals
         List<double> Ji, Si, Qi, Pi;

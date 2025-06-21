@@ -32,6 +32,15 @@
       "MassDry": 15200,
       "Thrust": 1000e3,
       "Isp": 421
+    },
+    {
+      "Id": 4,
+      "Mode": 1,
+      "GLim": 100,
+      "MassTotal": 10000,
+      "MassDry": 5000,
+      "Thrust": 91e3,
+      "Isp": 314.5
     }
   ]
 }
