@@ -48,7 +48,7 @@ public class UpfgMode : IGuidanceMode
             Utils.PrintUPFG(upfg, sim);
             Console.WriteLine(upfg.PrevVals.tgo);
 
-            if (upfg.PrevVals.tgo < 40) return GuidanceMode.FinalBurn;
+            if (upfg.PrevVals.tgo < 5) return GuidanceMode.FinalBurn;
             else return null;
         }
         else return null;

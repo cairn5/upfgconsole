@@ -85,6 +85,12 @@ class Handler
         {
             lock (simLock)
             {
+
+                if (ascentProgram.ActiveMode is GuidanceMode.Idle)
+                {
+                    Console.WriteLine("Guidance program completed successfully.");
+                    break; // Exit the loop if guidance is complete
+                }
                 
                 sim.StepForward();
                 // Utils.PrintVars(sim, tgt, veh);
@@ -99,8 +105,8 @@ class Handler
                     }
                     else
                     {
-                        Console.WriteLine("UPFG FAILED - INSUFFICIENT DV");
-                        guidanceFailed = true;
+                        Console.WriteLine("SIMULATION STOPPED - FUEL DEPLETED");
+                        
                         break;
                     }
                 }
@@ -112,7 +118,7 @@ class Handler
 
         await guidanceTask;
 
-        if (guidanceFailed)
+        if (!guidanceFailed)
         {
             Utils.PlotTrajectory(sim);
             var kepler = sim.State.Kepler;
