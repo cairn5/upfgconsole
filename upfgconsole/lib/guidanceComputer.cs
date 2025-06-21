@@ -29,6 +29,7 @@ public class GravityTurnTarget : IGuidanceTarget
 public interface IGuidanceMode
 {
     bool Converged { get; }
+    bool StagingFlag { get; set; }
     GuidanceMode? Step(Simulator sim, IGuidanceTarget tgt, Vehicle veh);
     Vector3 GetSteering();
 }
@@ -37,6 +38,7 @@ public class UpfgMode : IGuidanceMode
 {
     private Upfg upfg = new Upfg();
     public bool Converged => upfg.ConvergenceFlag;
+    public bool StagingFlag { get; set; } = false;
     public Vector3 PrevSteering = new();
 
     public GuidanceMode? Step(Simulator sim, IGuidanceTarget tgt, Vehicle veh)
@@ -44,6 +46,11 @@ public class UpfgMode : IGuidanceMode
         if (tgt is UPFGTarget upfgTarget)
         {
             PrevSteering = sim.ThrustVector;
+            if (StagingFlag)
+            {
+                upfg.StageEvent();
+                StagingFlag = false;
+            }
             upfg.step(sim, veh, upfgTarget);
             Utils.PrintUPFG(upfg, sim);
             Console.WriteLine(upfg.PrevVals.tgo);
@@ -55,11 +62,7 @@ public class UpfgMode : IGuidanceMode
     }
     public Vector3 GetSteering()
     {
-        if (upfg.ConvergenceFlag)
-        {
-            return upfg.Steering;
-        }
-        else return PrevSteering;
+        return upfg.Steering;
 
     }
 }
@@ -67,6 +70,7 @@ public class UpfgMode : IGuidanceMode
 public class FinalMode : IGuidanceMode
 {
     public bool Converged => true;
+    public bool StagingFlag { get; set; } = false;
     public float BurnTime { get; set; } = 0f;
     public GuidanceMode? Step(Simulator sim, IGuidanceTarget tgt, Vehicle veh)
     {
@@ -80,6 +84,7 @@ public class FinalMode : IGuidanceMode
 public class IdleMode : IGuidanceMode
 {
     public bool Converged => true; // Idle mode is always converged
+    public bool StagingFlag { get; set; } = false;
     public GuidanceMode? Step(Simulator sim, IGuidanceTarget tgt, Vehicle veh)
     {
         return null;
@@ -90,6 +95,7 @@ public class IdleMode : IGuidanceMode
 public class PreLaunchMode : IGuidanceMode
 {
     public bool Converged => true;
+    public bool StagingFlag { get; set; } = false;
     public GuidanceMode? Step(Simulator sim, IGuidanceTarget tgt, Vehicle veh)
     {
         System.Threading.Thread.Sleep(100);
@@ -102,6 +108,7 @@ public class GravityTurnMode : IGuidanceMode
 {
     private GravityTurn gravityTurn = new GravityTurn();
     public bool Converged => false; // TODO: Implement convergence logic for GravityTurn
+    public bool StagingFlag { get; set; } = false;
     public void Setup(Simulator sim, IGuidanceTarget tgt)
     {
         // If GravityTurn ever needs a target, handle it here
@@ -114,7 +121,7 @@ public class GravityTurnMode : IGuidanceMode
         else
             throw new ArgumentException("GravityTurnMode requires a UPFGTarget as its target.");
         // TODO: Add convergence logic and return next mode if needed
-        if (sim.State.Misc["altitude"] > 5e3)
+        if (sim.State.Misc["altitude"] > 30e3)
         {
             return GuidanceMode.OrbitInsertion; //advance to next mode if altitude is above 50km
         }
@@ -132,10 +139,13 @@ public class GuidanceProgram
     public GuidanceMode ActiveMode { get; set; }
     public Vehicle Vehicle { get; set; }
     public Simulator Simulator { get; set; }
+    public bool StagingFlag { get; set; }
+    private int _lastStageCount;
 
     public GuidanceProgram(Dictionary<GuidanceMode, IGuidanceTarget> targets, Vehicle veh, Simulator sim)
     {
         Vehicle = veh;
+        _lastStageCount = veh.Stages.Count();
         Simulator = sim;
         Modes[GuidanceMode.Prelaunch] = new PreLaunchMode();
         Modes[GuidanceMode.Ascent] = new GravityTurnMode();
@@ -150,7 +160,11 @@ public class GuidanceProgram
     {
         var mode = Modes[ActiveMode];
         var tgt = Targets.ContainsKey(ActiveMode) ? Targets[ActiveMode] : null;
+        // Propagate staging flag to the mode
+        mode.StagingFlag = this.StagingFlag;
         var nextMode = mode.Step(Simulator, tgt, Vehicle);
+        // Reset after use
+        this.StagingFlag = false;
 
         if (nextMode.HasValue && Modes.ContainsKey(nextMode.Value))
         {
@@ -158,7 +172,15 @@ public class GuidanceProgram
         }
     }
 
-    public void UpdateVehicle(Vehicle veh) => Vehicle = veh;
+    public void UpdateVehicle(Vehicle veh)
+    {
+        if (_lastStageCount != veh.Stages.Count)
+        {
+            StagingFlag = true;
+        }
+        _lastStageCount = veh.Stages.Count;
+        Vehicle = veh;
+    }
 
     public Vector3 GetCurrentSteering() => Modes[ActiveMode].GetSteering();
 }

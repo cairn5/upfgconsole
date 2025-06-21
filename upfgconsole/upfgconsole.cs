@@ -24,7 +24,7 @@ class Handler
     {
         object simLock = new object();  // Lock to protect shared state
 
-        string missionPath = "/home/oli/code/csharp/upfgconsole/upfgconsole/shuttle.json";
+        string missionPath = "/home/oli/code/csharp/upfgconsole/upfgconsole/saturnV.json";
         string simPath = "/home/oli/code/csharp/upfgconsole/upfgconsole/simvars.json";
 
         MissionConfig mission = Utils.ReadMission(missionPath);

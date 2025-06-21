@@ -4,6 +4,7 @@ using System.Data;
 using System.Dynamic;
 using System.Numerics;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Security;
 using ScottPlot.LayoutEngines;
 
@@ -16,7 +17,7 @@ public class UPFGState
     public Vector3 rbias { get; private set; }
     public Vector3 rd { get; private set; }
     public Vector3 rgrav { get; private set; }
-    public double tb { get; private set; }
+    public double tb { get; set; }
     public double time { get; private set; }
     public double tgo { get; private set; }
     public Vector3 v { get; private set; }
@@ -42,23 +43,29 @@ public class UPFGState
 
 public class Upfg
 {
-    public UPFGState PrevVals { get; private set; }
-    public UPFGState CurrentVals { get; private set; }
-    public bool ConvergenceFlag { get; private set; }
+    public UPFGState PrevVals { get; private set; } = new UPFGState();
+    public UPFGState CurrentVals { get; private set; } = new UPFGState();
+    public bool ConvergenceFlag { get; private set; } = false;
     public bool SetupFlag { get; private set; } = false;
-    public Vector3 Steering { get; private set; }
+    public bool StagingFlag { get; set; } = false;
+    public Vector3 Steering { get; private set; } = new Vector3(0, 0, 0);
     public UPFGTarget? Target { get; private set; } = null;
 
-    public Upfg()
-    {
-        PrevVals = new UPFGState();
-        CurrentVals = new UPFGState();
-        ConvergenceFlag = false;
-        Steering = new Vector3(0, 0, 0);
-    }
+    // public Upfg()
+    // {
+    //     PrevVals = new UPFGState();
+    //     CurrentVals = new UPFGState();
+    //     ConvergenceFlag = false;
+    //     Steering = new Vector3(0, 0, 0);
+    // }
     public void SetTarget(UPFGTarget target)
     {
         Target = target;
+    }
+
+    public void StageEvent()
+    {
+        StagingFlag = true;
     }
 
     public void step(Simulator sim, Vehicle vehicle, UPFGTarget target)
@@ -68,7 +75,7 @@ public class Upfg
             SetTarget(target);
             Setup(sim);
             SetupFlag = true;
-        } 
+        }
         else
         {
             Run(sim, vehicle);
@@ -117,6 +124,12 @@ public class Upfg
         Vector3 vprev = PrevVals.v;
         Vector3 vgo = PrevVals.vgo;
 
+        if (StagingFlag)
+        {
+            PrevVals.tb = 0;
+            StagingFlag = false;
+        }
+
         // 1 - Initialization
         int n = vehicle.Stages.Count;
         List<int> stageModes;
@@ -124,17 +137,33 @@ public class Upfg
         InitializeStageParameters(vehicle, out stageModes, out accelLimits, out massFlows, out exhaustVelocities, out thrusts, out thrustAccelerations, out characteristicTimes, out burnTimes);
 
         // 2 - Accelerations
-        UpdateAccelerations(t, tp, v_, vprev, ref vgo, ref burnTimes, PrevVals.tb);
+        UpdateAccelerations(t, tp, v_, vprev, ref vgo, ref burnTimes);
+
+        // Update first stage parameters with current mass (critical fix)
+        if (stageModes[0] == 1)
+        {
+            thrustAccelerations[0] = thrusts[0] / m;
+            characteristicTimes[0] = exhaustVelocities[0] / thrustAccelerations[0];
+        }
 
         // 3 - Burn time calculation
         List<double> Li;
         List<double> tgoi;
+        double L;
         double tgo;
-        ComputeBurnTimes(stageModes, thrusts, accelLimits, exhaustVelocities, thrustAccelerations, characteristicTimes, burnTimes, vgo, out Li, out tgoi, out tgo);
+        ComputeBurnTimes(stageModes, thrusts, accelLimits, exhaustVelocities, thrustAccelerations, characteristicTimes, burnTimes, vgo, out Li, out L, out tgoi, out tgo);
+
+        // //Check that we don't have too many stages
+        // if (L > vgo.Length())
+        // {
+        //     vehicle.Stages.RemoveAt(vehicle.Stages.Count - 1);
+        //     Run(sim, vehicle);
+        //     return;
+        // }
 
         // 4 - Thrust integrals
         List<double> Ji, Si, Qi, Pi;
-        double L, J, S, Q_, H, P;
+        double J, S, Q_, H, P;
         ComputeThrustIntegrals(stageModes, Li, tgoi, characteristicTimes, exhaustVelocities, burnTimes, accelLimits, out Ji, out Si, out Qi, out Pi, out L, out J, out S, out Q_, out H, out P);
 
         // 5 - Guidance vectors
@@ -160,10 +189,17 @@ public class Upfg
         UpdateTargetVectors(r_, v_, tgo, rgrav, rthrust, iy, rdval, gamma, vdval, vgrav, vbias, out rd, out vgo);
 
         // Finalize
-        CurrentVals.SetVals(cser, rbias, rd, rgrav, PrevVals.tb + (t - tp), t, tgo, v_, vgo);
-        CheckConvergence();
+        double dt = t - tp;
+        CurrentVals.SetVals(cser, rbias, rd, rgrav, PrevVals.tb + dt, t, tgo, v_, vgo);
         PrevVals = CurrentVals;
-        Steering = iF_;
+
+        CheckConvergence();
+        if (!ConvergenceFlag)
+        {
+            Steering = sim.ThrustVector;
+        }
+        else Steering = iF_;
+        
         if (iF_.X < 0)
         {
             Console.WriteLine("X NEG");
@@ -196,19 +232,19 @@ public class Upfg
         }
     }
 
-    private void UpdateAccelerations(double t, double tp, Vector3 v_, Vector3 vprev, ref Vector3 vgo, ref List<double> burnTimes, double prevBurnTime)
+    private void UpdateAccelerations(double t, double tp, Vector3 v_, Vector3 vprev, ref Vector3 vgo, ref List<double> burnTimes)
     {
         double dt = t - tp;
         Vector3 dvsensed = v_ - vprev;
         vgo -= dvsensed;
-        burnTimes[0] -= prevBurnTime;
+        burnTimes[0] -= PrevVals.tb;
     }
 
-    private void ComputeBurnTimes(List<int> stageModes, List<double> thrusts, List<double> accelLimits, List<double> exhaustVelocities, List<double> thrustAccelerations, List<double> characteristicTimes, List<double> burnTimes, Vector3 vgo, out List<double> Li, out List<double> tgoi, out double tgo)
+    private void ComputeBurnTimes(List<int> stageModes, List<double> thrusts, List<double> accelLimits, List<double> exhaustVelocities, List<double> thrustAccelerations, List<double> characteristicTimes, List<double> burnTimes, Vector3 vgo, out List<double> Li, out double L, out List<double> tgoi, out double tgo)
     {
         int n = stageModes.Count;
         Li = new List<double>();
-        double L = 0;
+        L = 0;
         for (int i = 0; i < n - 1; i++)
         {
             if (stageModes[i] == 1)
@@ -217,13 +253,17 @@ public class Upfg
                 Li.Add(accelLimits[i] * burnTimes[i]);
             L += Li[i];
         }
+        if (L > vgo.Length())
+        {
+            Console.WriteLine("STAGE NEG");
+        }
         Li.Add((vgo).Length() - L);
         tgoi = new List<double>();
         for (int i = 0; i < n; i++)
         {
-            if (stageModes[0] == 1)
+            if (stageModes[i] == 1)  // Fixed: was stageModes[0], now uses stageModes[i]
                 burnTimes[i] = characteristicTimes[i] * (1 - Math.Exp(-Li[i] / exhaustVelocities[i]));
-            else if (stageModes[0] == 2)
+            else if (stageModes[i] == 2)  // Fixed: was stageModes[0], now uses stageModes[i]
                 burnTimes[i] = Li[i] / accelLimits[i];
             if (i == 0)
                 tgoi.Add(burnTimes[i]);

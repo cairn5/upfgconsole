@@ -2,9 +2,9 @@
   "Simulator": {
     "speed": 10,
     "dt": 0.1,
-    "startLat" : 0,
+    "startLat" : 28.5,
     "startLong" : 0,
-    "startGround" : 0,
+    "startGround" : 1,
     "airVel" : 2400,
     "airFpa" : 45,
     "altitude" : 45
