@@ -397,7 +397,7 @@ public static class Utils
     public static void PrintVars(Simulator sim, UPFGTarget tgt, Vehicle veh)
     {
 
-        Console.Clear();
+        
         Console.CursorVisible = false;
 
         Console.WriteLine("-------- ORBITAL ELEMENTS --------");
@@ -407,7 +407,7 @@ public static class Utils
         transposedTable.AddRow("AP",
             sim.State.Kepler["ap"].ToString("F1").PadLeft(6),
             tgt.ap.ToString("F1").PadLeft(6))
-        .AddRow("AP",
+        .AddRow("PE",
             sim.State.Kepler["pe"].ToString("F1").PadLeft(6),
             tgt.pe.ToString("F1").PadLeft(6))
         .AddRow("INC",

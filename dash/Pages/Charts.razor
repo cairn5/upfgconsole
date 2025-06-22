@@ -1,0 +1,51 @@
+@page "/"
+@using ApexCharts
+
+<PageTitle>charts</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12 col-md-6 col-lg-4 mb-4" >
+            <ApexChart TItem="SamplePoint" Title="y = sin(x) / x" Options="@GetChartOptions()">
+                <ApexPointSeries TItem="SamplePoint"
+                                 Items="Points"
+                                 Name="sin(x)/x"
+                                 SeriesType="SeriesType.Line"
+                                 XValue="@(p => (decimal)p.X)"
+                                 YValue="@(p => (decimal)p.Y)" />
+            </ApexChart>
+        </div>
+        <div class="col-12 col-md-6 col-lg-4 mb-4" >
+            <ApexChart TItem="SamplePoint" Title="y = sin(x) / x" Options="@GetChartOptions()">
+                <ApexPointSeries TItem="SamplePoint"
+                                 Items="Points"
+                                 Name="sin(x)/x"
+                                 SeriesType="SeriesType.Line"
+                                 XValue="@(p => (decimal)p.X)"
+                                 YValue="@(p => (decimal)p.Y)" />
+            </ApexChart>
+        </div>
+        <div class="col-12 col-md-6 col-lg-4 mb-4" >
+            <ApexChart TItem="SamplePoint" Title="y = sin(x) / x" Options="@GetChartOptions()">
+                <ApexPointSeries TItem="SamplePoint"
+                                 Items="Points"
+                                 Name="sin(x)/x"
+                                 SeriesType="SeriesType.Line"
+                                 XValue="@(p => (decimal)p.X)"
+                                 YValue="@(p => (decimal)p.Y)" />
+            </ApexChart>
+        </div>
+        <div class="col-12 col-md-6 col-lg-4 mb-4" >
+            <ApexChart TItem="SamplePoint" Title="y = sin(x) / x" Options="@GetChartOptions()">
+                <ApexPointSeries TItem="SamplePoint"
+                                 Items="Points"
+                                 Name="sin(x)/x"
+                                 SeriesType="SeriesType.Line"
+                                 XValue="@(p => (decimal)p.X)"
+                                 YValue="@(p => (decimal)p.Y)" />
+            </ApexChart>
+        </div>
+    </div>
+</div>
+
+<button type="button" class="btn btn-secondary ms-2" @onclick="RunSimulation">Run Simulation</button>

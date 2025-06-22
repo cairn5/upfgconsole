@@ -8,6 +8,7 @@ using System.Reflection;
 using System.Security;
 using ScottPlot.LayoutEngines;
 
+
 public enum GuidanceMode
 {
     Idle,
@@ -31,7 +32,7 @@ public interface IGuidanceMode
     bool Converged { get; }
     bool StagingFlag { get; set; }
     GuidanceMode? Step(Simulator sim, IGuidanceTarget tgt, Vehicle veh);
-    Vector3 GetSteering();
+    Vector3? GetSteering();
 }
 
 public class UpfgMode : IGuidanceMode
@@ -39,7 +40,7 @@ public class UpfgMode : IGuidanceMode
     private Upfg upfg = new Upfg();
     public bool Converged => upfg.ConvergenceFlag;
     public bool StagingFlag { get; set; } = false;
-    public Vector3 PrevSteering = new();
+    public Vector3? PrevSteering = new();
 
     public GuidanceMode? Step(Simulator sim, IGuidanceTarget tgt, Vehicle veh)
     {
@@ -52,18 +53,18 @@ public class UpfgMode : IGuidanceMode
                 StagingFlag = false;
             }
             upfg.step(sim, veh, upfgTarget);
+            Console.Clear();
             Utils.PrintUPFG(upfg, sim);
-            Console.WriteLine(upfg.PrevVals.tgo);
-
+            Utils.PrintVars(sim, (UPFGTarget)tgt, veh);
+            
             if (upfg.PrevVals.tgo < 5) return GuidanceMode.FinalBurn;
             else return null;
         }
         else return null;
     }
-    public Vector3 GetSteering()
+    public Vector3? GetSteering()
     {
         return upfg.Steering;
-
     }
 }
 
@@ -71,14 +72,32 @@ public class FinalMode : IGuidanceMode
 {
     public bool Converged => true;
     public bool StagingFlag { get; set; } = false;
-    public float BurnTime { get; set; } = 0f;
+    public float BurnTime { get; set; } = 5f;
+    public float InitialTime { get; set; } = -1f;
+    public Vector3 _PrevGuidance = Vector3.Zero;
+
     public GuidanceMode? Step(Simulator sim, IGuidanceTarget tgt, Vehicle veh)
     {
-        //InitialTime += sim
-        // Final burn logic here
-        return GuidanceMode.Idle; // After final burn, we can go to Idle or another mode
+        _PrevGuidance = sim.ThrustVector;
+
+        if (tgt is UPFGTarget upfgTarget)
+        {
+            Utils.PrintVars(sim, upfgTarget, veh);
+        }
+        
+        if (InitialTime == -1)
+        {
+            InitialTime = sim.State.t;
+        }
+
+        if (sim.State.t > InitialTime + BurnTime)
+        {
+            return GuidanceMode.Idle;
+        }
+        else return null;
+
     }
-    public Vector3 GetSteering() => Vector3.Zero; // Assuming sim.ThrustVector is the final steering vector
+    public Vector3? GetSteering() => null; // Assuming sim.ThrustVector is the final steering vector
 }
 
 public class IdleMode : IGuidanceMode
@@ -87,9 +106,10 @@ public class IdleMode : IGuidanceMode
     public bool StagingFlag { get; set; } = false;
     public GuidanceMode? Step(Simulator sim, IGuidanceTarget tgt, Vehicle veh)
     {
+        Console.WriteLine("Guidance program completed.");
         return null;
     }
-    public Vector3 GetSteering() => Vector3.Zero; // No steering in idle mode
+    public Vector3? GetSteering() => Vector3.Zero; // No steering in idle mode
 }
 
 public class PreLaunchMode : IGuidanceMode
@@ -101,7 +121,7 @@ public class PreLaunchMode : IGuidanceMode
         System.Threading.Thread.Sleep(100);
         return GuidanceMode.Ascent;
     }
-    public Vector3 GetSteering() => Vector3.Zero;
+    public Vector3? GetSteering() => Vector3.Zero;
 }
 
 public class GravityTurnMode : IGuidanceMode
@@ -127,7 +147,7 @@ public class GravityTurnMode : IGuidanceMode
         }
         return null;
     }
-    public Vector3 GetSteering() => gravityTurn.guidance;
+    public Vector3? GetSteering() => gravityTurn.guidance;
 }
 
 
@@ -139,6 +159,7 @@ public class GuidanceProgram
     public GuidanceMode ActiveMode { get; set; }
     public Vehicle Vehicle { get; set; }
     public Simulator Simulator { get; set; }
+    public Vector3? steering { get; set; }
     public bool StagingFlag { get; set; }
     private int _lastStageCount;
 
@@ -166,10 +187,16 @@ public class GuidanceProgram
         // Reset after use
         this.StagingFlag = false;
 
-        if (nextMode.HasValue && Modes.ContainsKey(nextMode.Value))
+        Vector3? newsteering = mode.GetSteering();
+        if (newsteering != null)
         {
-            ActiveMode = nextMode.Value;
+            steering = newsteering;
         }
+
+        if (nextMode.HasValue && Modes.ContainsKey(nextMode.Value))
+            {
+                ActiveMode = nextMode.Value;
+            }
     }
 
     public void UpdateVehicle(Vehicle veh)
@@ -182,7 +209,10 @@ public class GuidanceProgram
         Vehicle = veh;
     }
 
-    public Vector3 GetCurrentSteering() => Modes[ActiveMode].GetSteering();
+    public Vector3 GetCurrentSteering()
+    {
+        return (Vector3)steering;
+    }
 }
 
 

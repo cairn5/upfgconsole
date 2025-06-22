@@ -201,10 +201,6 @@ public class Upfg
         }
         else Steering = iF_;
         
-        if (iF_.X < 0)
-        {
-            Console.WriteLine("X NEG");
-        }
     }
 
     private void InitializeStageParameters(Vehicle vehicle, out List<int> stageModes, out List<double> accelLimits, out List<double> massFlows, out List<double> exhaustVelocities, out List<double> thrusts, out List<double> thrustAccelerations, out List<double> characteristicTimes, out List<double> burnTimes)
@@ -254,10 +250,7 @@ public class Upfg
                 Li.Add(accelLimits[i] * burnTimes[i]);
             L += Li[i];
         }
-        if (L > vgo.Length())
-        {
-            Console.WriteLine("STAGE NEG");
-        }
+
         Li.Add((vgo).Length() - L);
         tgoi = new List<double>();
         for (int i = 0; i < n; i++)

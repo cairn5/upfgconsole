@@ -7,14 +7,39 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Diagnostics;
 using ScottPlot.LayoutEngines;
-using lib;
 using ConsoleTables;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
+using OpenTK.Windowing.Desktop;
+using OpenTK.Graphics.OpenGL4;
+﻿using OpenTK.Mathematics;
+using OpenTK.Windowing.Common;
+using OpenTK.Windowing.Desktop;
+
+using lib;
+
 
 class Handler
 {
+
+    // static void Main()
+    // {
+    //     var nativeWindowSettings = new NativeWindowSettings()
+    //     {
+    //         ClientSize = new Vector2i(800, 600),
+    //         Title = "LearnOpenTK - Creating a Window",
+    //         // This is needed to run on macos
+    //         Flags = ContextFlags.ForwardCompatible,
+    //     };
+
+    //     using (var window = new Window(GameWindowSettings.Default, nativeWindowSettings))
+    //     {
+    //         window.Run();
+    //     }
+
+    // }
+
     static async Task Main()
     {
         await RunAsync();
@@ -42,7 +67,8 @@ class Handler
         {
             { GuidanceMode.Prelaunch, tgt },
             { GuidanceMode.Ascent, tgt },
-            { GuidanceMode.OrbitInsertion, tgt }
+            { GuidanceMode.OrbitInsertion, tgt },
+            { GuidanceMode.FinalBurn, tgt}
         };
 
         GuidanceProgram ascentProgram = new GuidanceProgram(targets, veh, sim);
@@ -64,10 +90,6 @@ class Handler
                     ascentProgram.Step();
 
                     sim.SetGuidance(ascentProgram.GetCurrentSteering(), veh.Stages[0]);
-                    Console.WriteLine(ascentProgram.GetCurrentSteering().X);
-                    Console.WriteLine(ascentProgram.GetCurrentSteering().Y);
-                    Console.WriteLine(ascentProgram.GetCurrentSteering().Z);
-                    Console.WriteLine(ascentProgram.ActiveMode.ToString());
                     if (ascentProgram.ActiveMode is GuidanceMode.Idle)
                     {
                         Console.WriteLine("Guidance program completed successfully.");
@@ -75,7 +97,7 @@ class Handler
                     }
                 }
 
-                await Task.Delay((int)(0.5*100f)); // guidance runs slower
+                await Task.Delay((int)(0.1 * 1000f / sim.simspeed)); // guidance runs slower
                 guidanceIter++;
             }
         });
@@ -88,10 +110,9 @@ class Handler
 
                 if (ascentProgram.ActiveMode is GuidanceMode.Idle)
                 {
-                    Console.WriteLine("Guidance program completed successfully.");
                     break; // Exit the loop if guidance is complete
                 }
-                
+
                 sim.StepForward();
                 // Utils.PrintVars(sim, tgt, veh);
 
@@ -106,14 +127,14 @@ class Handler
                     else
                     {
                         Console.WriteLine("SIMULATION STOPPED - FUEL DEPLETED");
-                        
+
                         break;
                     }
                 }
             }
 
-            await Task.Delay((int)(sim.dt * 100f));
-    
+            await Task.Delay((int)(sim.dt * 1000f / sim.simspeed));
+
         }
 
         await guidanceTask;
