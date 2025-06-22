@@ -24,35 +24,29 @@ class Handler
     {
         object simLock = new object();  // Lock to protect shared state
 
-        float lat = 28.5f;
-        string path = "/home/oli/code/csharp/upfgconsole/upfgconsole/saturnV.json";
+        string missionPath = "/home/oli/code/csharp/upfgconsole/upfgconsole/saturnV.json";
+        string simPath = "/home/oli/code/csharp/upfgconsole/upfgconsole/simvars.json";
 
-        MissionConfig mission = Utils.ReadMission(path);
+        MissionConfig mission = Utils.ReadMission(missionPath);
         Vehicle veh = Vehicle.FromStages(mission);
         Dictionary<string, float> desOrbit = mission.Orbit;
 
-        double azimuth = Math.Asin(Math.Cos(Utils.DegToRad(desOrbit["inc"])) / Math.Cos(Utils.DegToRad(lat)));
+        Simulator sim = new Simulator();
+        sim.LoadSimVarsFromJson(simPath);
+        sim.SetVehicle(veh);
 
-        var initial = new Dictionary<string, double>
+        UPFGTarget tgt = new UPFGTarget();
+        tgt.Set(desOrbit, sim);
+
+        Dictionary<GuidanceMode, IGuidanceTarget> targets = new Dictionary<GuidanceMode, IGuidanceTarget>
         {
-            {"altitude", 45 },
-            {"fpa", 50 },
-            {"speed", 2400 },
-            {"latitude", lat},
-            {"longitude", 0 },
-            {"heading", Utils.RadToDeg(azimuth) }
+            { GuidanceMode.Prelaunch, tgt },
+            { GuidanceMode.Ascent, tgt },
+            { GuidanceMode.OrbitInsertion, tgt }
         };
 
-        Simulator sim = new Simulator();
-        sim.SetVesselStateFromLatLong(initial);
-        sim.SetVehicle(veh);
-        sim.SetTimeStep(0.1f);
+        GuidanceProgram ascentProgram = new GuidanceProgram(targets, veh, sim);
 
-        Target tgt = new Target();
-        tgt.SetTarget(desOrbit, sim);
-
-        Upfg guidance = new Upfg();
-        guidance.Setup(sim, tgt);
 
         double trem = 2;
         bool guidanceFailed = false;
@@ -66,35 +60,40 @@ class Handler
             {
                 lock (simLock)
                 {
-                    guidance.Run(sim, tgt, veh);
-                    
+                    ascentProgram.UpdateVehicle(veh);
+                    ascentProgram.Step();
 
-                    if (guidance.PrevVals.tgo < trem || guidanceIter > 1000)
+                    sim.SetGuidance(ascentProgram.GetCurrentSteering(), veh.Stages[0]);
+                    Console.WriteLine(ascentProgram.GetCurrentSteering().X);
+                    Console.WriteLine(ascentProgram.GetCurrentSteering().Y);
+                    Console.WriteLine(ascentProgram.GetCurrentSteering().Z);
+                    Console.WriteLine(ascentProgram.ActiveMode.ToString());
+                    if (ascentProgram.ActiveMode is GuidanceMode.Idle)
                     {
-                        guidanceFailed = true;
-                        Console.WriteLine("GUIDANCE FAIL");
-                        break;
-                    }
-
-                    if (guidance.ConvergenceFlag)
-                    {
-                        sim.SetGuidance(guidance.Steering, veh.Stages[0]);
+                        Console.WriteLine("Guidance program completed successfully.");
+                        break; // Exit the loop if guidance is complete
                     }
                 }
 
-                await Task.Delay(1000); // guidance runs slower
+                await Task.Delay((int)(0.5*100f)); // guidance runs slower
                 guidanceIter++;
             }
         });
 
         // Physics loop (fast)
-        while (!guidanceFailed && guidance.PrevVals.tgo > trem)
+        while (true)
         {
             lock (simLock)
             {
+
+                if (ascentProgram.ActiveMode is GuidanceMode.Idle)
+                {
+                    Console.WriteLine("Guidance program completed successfully.");
+                    break; // Exit the loop if guidance is complete
+                }
                 
                 sim.StepForward();
-                Utils.PrintVars(guidance, sim, mission, tgt, veh);
+                // Utils.PrintVars(sim, tgt, veh);
 
                 if (sim.State.mass < sim.SimVehicle.CurrentStage.MassDry)
                 {
@@ -106,14 +105,14 @@ class Handler
                     }
                     else
                     {
-                        Console.WriteLine("UPFG FAILED - INSUFFICIENT DV");
-                        guidanceFailed = true;
+                        Console.WriteLine("SIMULATION STOPPED - FUEL DEPLETED");
+                        
                         break;
                     }
                 }
             }
 
-            await Task.Delay((int)(sim.dt * 1000f));
+            await Task.Delay((int)(sim.dt * 100f));
     
         }
 
@@ -128,3 +127,4 @@ class Handler
         }
     }
 }
+

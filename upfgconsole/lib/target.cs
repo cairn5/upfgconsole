@@ -13,7 +13,7 @@ using ScottPlot.LayoutEngines;
 using ScottPlot.Rendering.RenderActions;
 using System.Diagnostics.Tracing;
 
-public class Target
+public class UPFGTarget: IGuidanceTarget
 {
     public float radius { get; private set; } = 0;
     public float velocity { get; private set; } = 0;
@@ -25,7 +25,7 @@ public class Target
     public float pe { get; private set; } = 0;
     public float ecc { get; private set; } = 0;
 
-    public void SetTarget(Dictionary<string, float> targetParams, Simulator sim)
+    public void Set(Dictionary<string, float> targetParams, Simulator sim)
     {
         SimState state = sim.State;
 
@@ -55,7 +55,11 @@ public class Target
         {
 
             (float b, float c) = Utils.CalculateSphericalAAS((float)state.Misc["latitude"], 1.57f, inc);
-            LAN = LAN = (float)state.Misc["longitude"] - b;
+            LAN = (float)state.Misc["longitude"] - b;
+            if (float.IsNaN(LAN))
+            {
+                LAN = 0;
+            }
         }
 
         normal = Utils.CalcOrbitNormal(inc, LAN);

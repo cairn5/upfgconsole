@@ -25,7 +25,7 @@ using ScottPlot.Rendering.RenderActions;
 
 // }
 
-public class Vehicle
+public class Vehicle : ICloneable
 {
     // Static configuration
     public List<Stage> Stages { get; set; } = new List<Stage>();
@@ -65,6 +65,19 @@ public class Vehicle
             Stages.RemoveAt(0);
             CurrentStageIndex = 0;
         }
+    }
+    public object Clone()
+    {
+        // Deep copy of stages
+        var clonedStages = new List<Stage>();
+        foreach (var stage in Stages)
+            clonedStages.Add((Stage)stage.Clone());
+        return new Vehicle
+        {
+            Stages = clonedStages,
+            CurrentStageIndex = this.CurrentStageIndex
+            // Copy other properties as needed
+        };
     }
 
 

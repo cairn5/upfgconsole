@@ -12,7 +12,7 @@ public class UpfgTests
     public void setup_returns_expected_rd()
     {
         float lat = 28.5f;
-        string path = "/home/oli/code/csharp/upfgconsole/upfgconsole/saturnV.json";
+        string path = "/home/oli/code/csharp/upfgconsole/upfgconsole/shuttle.json";
 
         MissionConfig mission = Utils.ReadMission(path);
         Vehicle veh = Vehicle.FromStages(mission);
@@ -31,15 +31,16 @@ public class UpfgTests
         };
 
         Simulator sim = new Simulator();
-        sim.SetVesselStateFromLatLong(initial);
+        sim.SetVesselStateFromLatLongAir(initial);
         sim.SetVehicle(veh);
         sim.SetTimeStep(0.1f);
 
-        Target tgt = new Target();
-        tgt.SetTarget(desOrbit, sim);
+        UPFGTarget tgt = new UPFGTarget();
+        tgt.Set(desOrbit, sim);
 
         Upfg guidance = new Upfg();
-        guidance.Setup(sim, tgt);
+        guidance.SetTarget(tgt);
+        guidance.Setup(sim);
 
         Assert.Equal(4862564.5, guidance.PrevVals.rd.X);
         Assert.Equal(1835815.75, guidance.PrevVals.rd.Y);
@@ -51,7 +52,7 @@ public class UpfgTests
     public void run_returns_expected()
     {
         float lat = 28.5f;
-        string path = "/home/oli/code/csharp/upfgconsole/upfgconsole/saturnV.json";
+        string path = "/home/oli/code/csharp/upfgconsole/upfgconsole/shuttle.json";
 
         MissionConfig mission = Utils.ReadMission(path);
         Vehicle veh = Vehicle.FromStages(mission);
@@ -70,21 +71,22 @@ public class UpfgTests
         };
 
         Simulator sim = new Simulator();
-        sim.SetVesselStateFromLatLong(initial);
+        sim.SetVesselStateFromLatLongAir(initial);
         sim.SetVehicle(veh);
         sim.SetTimeStep(0.1f);
 
-        Target tgt = new Target();
-        tgt.SetTarget(desOrbit, sim);
+        UPFGTarget tgt = new UPFGTarget();
+        tgt.Set(desOrbit, sim);
 
         Upfg guidance = new Upfg();
-        guidance.Setup(sim, tgt);
+        guidance.SetTarget(tgt);
+        guidance.Setup(sim);
 
-        guidance.Run(sim, tgt, veh);
+        guidance.Run(sim, veh);
 
-        Assert.Equal(544.66, guidance.PrevVals.tgo, 2);
-        Assert.Equal(1455633.12, guidance.PrevVals.rgrav.Length(), 2);
-        Assert.Equal(6450.63037, guidance.PrevVals.vgo.Length(), 2);
+        Assert.Equal(219.46, guidance.PrevVals.tgo, 2);
+        Assert.Equal(224690.53, guidance.PrevVals.rgrav.Length(), 2);
+        Assert.Equal(6972.5699, guidance.PrevVals.vgo.Length(), 2);
 
     }
 }

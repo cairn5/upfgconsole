@@ -1,4 +1,4 @@
-public class Stage
+public class Stage : ICloneable
 {
     public int Id { get; set; }
     public int Mode { get; set; }
@@ -7,6 +7,12 @@ public class Stage
     public double MassDry { get; set; }
     public double Thrust { get; set; }
     public double Isp { get; set; }
+
+    public object Clone()
+    {
+        return this.MemberwiseClone();
+    }
+
 }
 
 public class MissionConfig

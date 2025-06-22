@@ -10,19 +10,37 @@
       "Id": 1,
       "Mode": 1,
       "GLim": 100,
-      "MassTotal": 599000,
-      "MassDry": 190000,
-      "Thrust": 5165000,
-      "Isp": 421
+      "MassTotal": 2804500,
+      "MassDry": 727500,
+      "Thrust": 33000e3,
+      "Isp": 263
     },
     {
       "Id": 2,
       "Mode": 1,
       "GLim": 100,
-      "MassTotal": 119000,
-      "MassDry": 10000,
-      "Thrust": 1033000,
+      "MassTotal": 590500,
+      "MassDry": 163500,
+      "Thrust": 4400e3,
       "Isp": 421
+    },
+    {
+      "Id": 3,
+      "Mode": 1,
+      "GLim": 100,
+      "MassTotal": 120500,
+      "MassDry": 15200,
+      "Thrust": 1000e3,
+      "Isp": 421
+    },
+    {
+      "Id": 4,
+      "Mode": 1,
+      "GLim": 100,
+      "MassTotal": 10000,
+      "MassDry": 5000,
+      "Thrust": 91e3,
+      "Isp": 314.5
     }
   ]
 }
