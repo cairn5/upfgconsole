@@ -55,7 +55,7 @@ public class UpfgMode : IGuidanceMode
             }
             upfg.step(sim, veh, upfgTarget);
             Console.Clear();
-            // Utils.PrintUPFG(upfg, sim);
+            Utils.PrintUPFG(upfg, sim);
             // Utils.PrintVars(sim, (UPFGTarget)tgt, veh);
             
             if (upfg.PrevVals.tgo < 5) return GuidanceMode.FinalBurn;
