@@ -22,6 +22,8 @@ namespace dash.Pages
 
 
         private SimParams simParams = new SimParams();
+        private Simulator? simcopy;
+        private GuidanceProgram? guidancecopy;
         private SimResult? result;
         private const string SettingsKey = "simParams";
 
@@ -165,25 +167,28 @@ namespace dash.Pages
 
             // Optionally clear previous result
             result = null;
+            StopPlotLoop(); // Stop any previous plot loop
+            _ = StartPlotLoop(); // Start background plot loop (fire-and-forget)
 
             await Runner.RunSim(
                 simParams,
                 onGuidanceStep: (guidance) =>
                 {
-                    
+                    guidancecopy = guidance;
                     // This runs at each guidance step
                     // You can collect guidance data, update UI, etc.
                     // Example: Console.WriteLine($"Guidance mode: {guidance.ActiveMode}");
                 },
-                onSimStep: async (sim) =>
+                onSimStep: (sim) =>
                 {
-                    await plotSimulator(sim);
+                    simcopy = sim;
                     // This runs at each sim step
                     // You can collect sim data, update UI, etc.
                     // Example: Console.WriteLine($"Sim time: {sim.State.time}");
                 }
             );
 
+            StopPlotLoop(); // Stop plot loop when simulation ends
             // // Optionally, set result after simulation
             // result = new SimResult
             // {
@@ -262,5 +267,25 @@ namespace dash.Pages
             public double[]? Y { get; set; }
         }
 
+        private CancellationTokenSource? plotCts;
+
+        private async Task StartPlotLoop()
+        {
+            plotCts = new CancellationTokenSource();
+            var token = plotCts.Token;
+            while (!token.IsCancellationRequested)
+            {
+                if (simcopy != null)
+                {
+                    await plotSimulator(simcopy);
+                }
+                await Task.Delay(500, token); // update plot every 100ms
+            }
+        }
+
+        private void StopPlotLoop()
+        {
+            plotCts?.Cancel();
+        }
     }
 }
