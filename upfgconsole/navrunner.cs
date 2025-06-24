@@ -1,4 +1,4 @@
-﻿// See https://aka.ms/new-console-template for more information
+// See https://aka.ms/new-console-template for more information
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -12,30 +12,27 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
 
+namespace lib;
 
-using lib;
 
-
-class Handler
+public static class Runner
 {
-    static async Task Main()
-    {
-        await RunAsync();
-    }
 
-    static async Task RunAsync()
+    public static async Task RunSim(SimParams simParams, Action<GuidanceProgram> onGuidanceStep, Action<Simulator> onSimStep)
     {
         object simLock = new object();  // Lock to protect shared state
 
-        string missionPath = "/home/oli/code/csharp/upfgconsole/upfgconsole/saturnV.json";
-        string simPath = "/home/oli/code/csharp/upfgconsole/upfgconsole/simvars.json";
 
-        MissionConfig mission = Utils.ReadMission(missionPath);
-        Vehicle veh = Vehicle.FromStagesJson(mission);
-        Dictionary<string, float> desOrbit = mission.Orbit;
+        Vehicle veh = Vehicle.FromStagesDash(simParams.Stages);
+        Dictionary<string, float> desOrbit = new Dictionary<string, float>
+        {
+            {"pe", (float)simParams.Pe },
+            {"ap", (float)simParams.Ap },
+            {"inc", (float)simParams.Inc }
+        };
 
         Simulator sim = new Simulator();
-        sim.LoadSimVarsFromJson(simPath);
+        sim.LoadSimVarsFromDash(simParams);
         sim.SetVehicle(veh);
 
         UPFGTarget tgt = new UPFGTarget();
@@ -74,8 +71,10 @@ class Handler
                         break; // Exit the loop if guidance is complete
                     }
                 }
+                var guidanceState = ascentProgram;
+                onGuidanceStep?.Invoke(ascentProgram);
 
-                await Task.Delay((int)(0.1 * 1000f / sim.simspeed)); // guidance runs slower
+                await Task.Delay((int)(simParams.dtguidance * 1000f / sim.simspeed)); // guidance runs slower
                 guidanceIter++;
             }
         });
@@ -108,6 +107,8 @@ class Handler
                         break;
                     }
                 }
+                
+                onSimStep?.Invoke(sim);
             }
 
             await Task.Delay((int)(sim.dt * 1000f / sim.simspeed));
@@ -126,3 +127,28 @@ class Handler
     }
 }
 
+public class SimResult
+{
+    public Simulator sim { get; set; }
+    public GuidanceProgram guidance { get; set; }
+}
+
+public class SimParams
+    {
+        public double TargetRadius { get; set; }
+        public double Pe { get; set; }
+        public double Ap { get; set; }
+        public double Inc { get; set; }
+        public int StageCount { get; set; }
+        public List<Stage> Stages { get; set; } = new();
+        public double Speed { get; set; }
+        public double dtsim { get; set; }
+        public double dtguidance { get; set; }
+        public double StartLat { get; set; }
+        public double StartLong { get; set; }
+        public double StartGround { get; set; }
+        public double AirVel { get; set; }
+        public double AirFpa { get; set; }
+        public double Altitude { get; set; }
+        public double Mode { get; set; }
+    }

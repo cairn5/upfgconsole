@@ -35,7 +35,7 @@ public class Simulator
         State.CartToKepler();
 
         Iteration = new Dictionary<string, Vector3>();
-       
+
         ThrustVector = new Vector3(0, 0, 0);
         dt = 1;
 
@@ -195,9 +195,46 @@ public class Simulator
         SetTimeStep(dtlocal);
         this.simspeed = simspeedlocal;
     }
-        
 
 
+    public void LoadSimVarsFromDash(SimParams simParams)
+    {
+
+        // Set initial state using these values
+        // Convert degrees to radians where needed
+        double latitude = Utils.DegToRad(simParams.StartLat);
+        double longitude = Utils.DegToRad(simParams.StartLong);
+
+        if (simParams.StartGround == 0)
+        {
+            double speed = simParams.AirVel;
+            double fpa = simParams.AirFpa; // Flight path angle in degrees
+            double heading = 90; // Default east, can be parameterized
+
+            var initial = new Dictionary<string, double>
+            {
+                {"altitude", simParams.Altitude},
+                {"fpa", fpa},
+                {"latitude", latitude},
+                {"longitude", longitude},
+                {"heading", heading},
+                {"speed", speed}
+            };
+            SetVesselStateFromLatLongAir(initial);
+        }
+        if (simParams.StartGround == 1)
+        {
+
+            var initial = new Dictionary<string, double>
+            {
+                {"latitude", latitude},
+                {"longitude", longitude}
+            };
+            SetVesselStateFromLatLongGround(initial);
+        }
+        SetTimeStep((float)simParams.dtsim);
+        this.simspeed = simParams.Speed;
+    }
 
 
 }

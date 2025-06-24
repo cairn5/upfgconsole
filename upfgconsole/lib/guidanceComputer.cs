@@ -31,6 +31,7 @@ public interface IGuidanceMode
 {
     bool Converged { get; }
     bool StagingFlag { get; set; }
+    // SimState? GuidanceHistory { get; set; }
     GuidanceMode? Step(Simulator sim, IGuidanceTarget tgt, Vehicle veh);
     Vector3? GetSteering();
 }
@@ -54,8 +55,8 @@ public class UpfgMode : IGuidanceMode
             }
             upfg.step(sim, veh, upfgTarget);
             Console.Clear();
-            Utils.PrintUPFG(upfg, sim);
-            Utils.PrintVars(sim, (UPFGTarget)tgt, veh);
+            // Utils.PrintUPFG(upfg, sim);
+            // Utils.PrintVars(sim, (UPFGTarget)tgt, veh);
             
             if (upfg.PrevVals.tgo < 5) return GuidanceMode.FinalBurn;
             else return null;

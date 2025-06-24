@@ -152,8 +152,8 @@ public static class Utils
     public static Vector3 SphericalToCartesian(double latitude, double longitude, double r)
     {
 
-        latitude = DegToRad(latitude);
-        longitude = DegToRad(longitude);
+        latitude = latitude;
+        longitude = longitude;
 
         double rX = r * Math.Cos(latitude) * Math.Cos(longitude);
         double rY = r * Math.Cos(latitude) * Math.Sin(longitude);
