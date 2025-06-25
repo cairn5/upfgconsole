@@ -34,9 +34,14 @@ public class Visualizer
             Title = "OpenTK Modern Shader Sine Wave Demo",
         };
 
-
+        // --- Window setup with framerate control ---
+        var gameWindowSettings = new GameWindowSettings()
+        {
+            UpdateFrequency = 10.0,  // Set your desired update rate
+        };
+        
         // Create the OpenTK GameWindow (main OpenGL context and event loop).
-        using var window = new GameWindow(GameWindowSettings.Default, nativeWindowSettings);
+        using var window = new GameWindow(gameWindowSettings, nativeWindowSettings);
 
         // --- Sine wave state ---
         int shaderProgram = 0, vao = 0, vbo = 0; // OpenGL handles for sine wave
@@ -53,6 +58,10 @@ public class Visualizer
         // --- Sphere mesh state (must be accessible in RenderFrame and Unload) ---
         int sphereIndexCount = 0; // Number of indices for sphere mesh
         int sphereVao = 0, sphereVbo = 0, sphereEbo = 0; // OpenGL handles for sphere
+
+        // --- Trajectory state
+        int trajIndexCount = 0;
+        int trajVao = 0, trajVbo = 0, trajEbo = 0;
 
         // --- (Legacy) Textured quad shader sources (not used for GL_POINTS font) ---
         string textVertexShaderSrc = "#version 330 core\nlayout(location=0) in vec2 aPos;layout(location=1) in vec2 aTex;out vec2 TexCoord;void main(){gl_Position=vec4(aPos,0,1);TexCoord=aTex;}";
@@ -71,21 +80,46 @@ public class Visualizer
             string vertexShaderSource = "#version 330 core\nlayout(location = 0) in vec3 aPosition;\nuniform mat4 transform;\nvoid main(){gl_Position = transform * vec4(aPosition, 1.0) ;}";
             // Fragment shader: outputs solid color from uniform
             string fragmentShaderSource = "#version 330 core\nout vec4 FragColor;\nuniform vec3 color;\nvoid main(){FragColor = vec4(color, 1.0);}";
+            
             // Compile vertex shader
             int vertexShader = GL.CreateShader(ShaderType.VertexShader);
             GL.ShaderSource(vertexShader, vertexShaderSource);
             GL.CompileShader(vertexShader);
+            
+            // Check compilation status
+            GL.GetShader(vertexShader, ShaderParameter.CompileStatus, out int vertexStatus);
+            if (vertexStatus == 0)
+            {
+                string infoLog = GL.GetShaderInfoLog(vertexShader);
+                Console.WriteLine($"Vertex shader compilation failed: {infoLog}");
+            }
 
             // Compile fragment shader
             int fragmentShader = GL.CreateShader(ShaderType.FragmentShader);
             GL.ShaderSource(fragmentShader, fragmentShaderSource);
             GL.CompileShader(fragmentShader);
+            
+            // Check compilation status
+            GL.GetShader(fragmentShader, ShaderParameter.CompileStatus, out int fragStatus);
+            if (fragStatus == 0)
+            {
+                string infoLog = GL.GetShaderInfoLog(fragmentShader);
+                Console.WriteLine($"Fragment shader compilation failed: {infoLog}");
+            }
 
             // Link shaders into a program
             shaderProgram = GL.CreateProgram();
             GL.AttachShader(shaderProgram, vertexShader);
             GL.AttachShader(shaderProgram, fragmentShader);
             GL.LinkProgram(shaderProgram);
+            
+            // Check linking status
+            GL.GetProgram(shaderProgram, GetProgramParameterName.LinkStatus, out int linkStatus);
+            if (linkStatus == 0)
+            {
+                string infoLog = GL.GetProgramInfoLog(shaderProgram);
+                Console.WriteLine($"Shader program linking failed: {infoLog}");
+            }
 
             // Clean up shader objects (no longer needed after linking)
             GL.DeleteShader(vertexShader);
@@ -109,6 +143,27 @@ public class Visualizer
             // Set background color (dark gray)
             GL.ClearColor(0.1f, 0.1f, 0.1f, 1f);
 
+            // -- Trajectory Setup
+            if (sim.History.Count > 0)
+            {
+                float[] trajVertices = new float[sim.History.Count * 3]; // 3 floats per vertex (x,y,z)
+                uint[] trajIndices = new uint[sim.History.Count];
+                for (uint i = 0; i < sim.History.Count; i++) trajIndices[i] = i;
+
+                trajVao = GL.GenVertexArray();
+                trajVbo = GL.GenBuffer();
+                trajEbo = GL.GenBuffer();
+                GL.BindVertexArray(trajVao);
+                GL.BindBuffer(BufferTarget.ArrayBuffer, trajVbo);
+                GL.BufferData(BufferTarget.ArrayBuffer, trajVertices.Length * sizeof(float), trajVertices, BufferUsageHint.DynamicDraw);
+                GL.BindBuffer(BufferTarget.ElementArrayBuffer, trajEbo);
+                GL.BufferData(BufferTarget.ElementArrayBuffer, trajIndices.Length * sizeof(uint), trajIndices, BufferUsageHint.StaticDraw);
+                GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), 0); // 3 components per vertex
+                GL.EnableVertexAttribArray(0);
+                GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+                GL.BindVertexArray(0);
+            }
+
             // --- (Legacy) Text shader and quad setup (not used for GL_POINTS font) ---
             int v = GL.CreateShader(ShaderType.VertexShader);
             GL.ShaderSource(v, textVertexShaderSrc);
@@ -122,6 +177,7 @@ public class Visualizer
             GL.LinkProgram(textShader);
             GL.DeleteShader(v);
             GL.DeleteShader(f);
+            
             // Text quad VAO/VBO (not used for GL_POINTS font, but left for reference)
             float[] quad = {
                 -1f,  1f, 0f, 0f,
@@ -201,58 +257,57 @@ public class Visualizer
             GL.BindVertexArray(0);
         };
 
-
         // --- Main render loop: called every frame ---
         window.RenderFrame += (FrameEventArgs args) =>
         {
+            // Clear the color and depth buffers
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
             float aspectRatio = window.Size.X / (float)window.Size.Y;
             Matrix4 projection = Matrix4.CreatePerspectiveFieldOfView(
-                MathHelper.DegreesToRadians(80f), 
-                aspectRatio, 
-                0.1f, 
+                MathHelper.DegreesToRadians(80f),
+                aspectRatio,
+                0.1f,
                 200.0f
             );
 
             // Position camera looking at origin from positive Z
-            // Matrix4 view = Matrix4.LookAt(
-            //     new Vector3(0f, 0f, 0f),  // Camera position
-            //     new Vector3(0f, 0f, 0f),             // Look at origin
-            //     Vector3.UnitY            // Up vector
-            // );
+            Matrix4 view = Matrix4.LookAt(
+                new Vector3(0f, 0.5f, 1f),  // Camera position (moved to positive Z)
+                new Vector3(0f, 0f, 0f),    // Look at origin
+                Vector3.UnitY               // Up vector
+            );
 
-
-
-            // --- Animate sine wave ---
-            phase += speed * args.Time; // Advance phase for animation
+            // Update sine wave animation
+            phase += speed * args.Time;
             for (int i = 0; i < numPoints; i++)
             {
-                float x = (float)i / (numPoints - 1) * 2f - 1f; // NDC X: -1 to 1
-                float t = (float)i / (numPoints - 1) * 4f * (float)Math.PI;
-                float y = (float)Math.Sin(t + phase) * 0.5f; // NDC Y: -0.5 to 0.5
+                float x = (float)i / (numPoints - 1) * 4f - 2f; // X from -2 to 2
+                float y = (float)Math.Sin(x + phase);            // Sine wave with phase
                 vertices[i * 2] = x;
                 vertices[i * 2 + 1] = y;
             }
-            // Update VBO with new sine wave vertices
+
+            // Update sine wave VBO
             GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
             GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, vertices.Length * sizeof(float), vertices);
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-            // Clear the screen
-            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-            // Use main shader program
+
+            // Draw sine wave as a line strip (2D, using identity transform)
             GL.UseProgram(shaderProgram);
-            // Set transform to identity for 2D sine wave and text
+            GL.BindVertexArray(vao);
+            int colorLoc = GL.GetUniformLocation(shaderProgram, "color");
+            if (colorLoc >= 0) GL.Uniform3(colorLoc, 1.0f, 1.0f, 0.0f); // Yellow color
+            
+            // Use identity transform for 2D sine wave
+            Matrix4 identityTransform = Matrix4.Identity;
             int transformLoc = GL.GetUniformLocation(shaderProgram, "transform");
-            Matrix4 identity = Matrix4.Identity;
-            GL.UniformMatrix4(transformLoc, false, ref identity);
-
-
-            // // Draw sine wave as a line strip
-            // GL.BindVertexArray(vao);
-            // GL.LineWidth(2.0f);
+            GL.UniformMatrix4(transformLoc, false, ref identityTransform);
+            
+            GL.LineWidth(2.0f);
             // GL.DrawElements(PrimitiveType.LineStrip, numPoints, DrawElementsType.UnsignedInt, 0);
-           
-           
+            // GL.BindVertexArray(0);
+
             // --- Draw simulation time and text using bitmap font ---
             float simTime = (float)phase / (float)speed; // Fake sim time for demo
             string timeStr = $"t = {simTime:F2}s";
@@ -260,38 +315,66 @@ public class Visualizer
             DrawText("the quick brown fox jumped over the lazy dog", -0.98f, 0.1f, 2f, 1f, 1f, 1f);
             DrawText("THE QUICK BROWN FOX JUMPED\n OVER THE LAZY DOG", -0.98f, -0.1f, 2f, 1f, 1f, 1f);
 
-
             // --- Draw 3D wireframe sphere (latitude/longitude lines) ---
             GL.UseProgram(shaderProgram);
             GL.BindVertexArray(sphereVao);
-            int colorLoc = GL.GetUniformLocation(shaderProgram, "color");
+            colorLoc = GL.GetUniformLocation(shaderProgram, "color");
             if (colorLoc >= 0) GL.Uniform3(colorLoc, 0.2f, 0.6f, 1.0f); // Blue color for sphere
             double time = phase / speed;
-            // Compose transform: rotate Y (animation), rotate X (tilt), translate X (wobble)
-
-            Matrix4 view = Matrix4.CreateTranslation(new Vector3(0f, 0f, -1f));
-
-            // Matrix4 projection = Matrix4.Identity;
-            // Matrix4 view = Matrix4.Identity;
-            var model = Matrix4.CreateRotationY(0.1f*(float)(time)) * Matrix4.CreateScale(1f, 1f, 1f);
+            
+            // Compose transform: rotate Y (animation), scale, view, projection
+            var model = Matrix4.CreateScale(1f, 1f, 1f);
             var transform = model * view * projection;
 
-            // Set transform to identity for 2D sine wave and text
             transformLoc = GL.GetUniformLocation(shaderProgram, "transform");
             GL.UniformMatrix4(transformLoc, false, ref transform);
+            
             // Draw sphere as wireframe (PolygonMode.Line)
-
-            Console.WriteLine($"Sphere index count: {sphereIndexCount}");
-            Console.WriteLine($"Transform matrix: {transform}");
             GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Line);
             GL.DrawElements(PrimitiveType.Triangles, sphereIndexCount, DrawElementsType.UnsignedInt, 0);
             GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Fill); // Restore fill mode
             GL.BindVertexArray(0);
+
+            if (sim.History.Count > 0 && trajVao != 0)
+            {
+                // Update trajectory vertices with 3D positions
+                float[] trajVertices = new float[sim.History.Count * 3];
+                for (int i = 0; i < sim.History.Count; i++)
+                {
+                    trajVertices[i * 3] = sim.History[i].r.X;     // X
+                    trajVertices[i * 3 + 1] = sim.History[i].r.Y; // Y  
+                    trajVertices[i * 3 + 2] = sim.History[i].r.Z; // Z
+                }
+
+                // Update trajectory VBO
+                GL.BindBuffer(BufferTarget.ArrayBuffer, trajVbo);
+                GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, trajVertices.Length * sizeof(float), trajVertices);
+                GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+
+                // Draw trajectory as 3D line
+                GL.UseProgram(shaderProgram);
+                GL.BindVertexArray(trajVao);
+
+                // Set trajectory color (e.g., red)
+                colorLoc = GL.GetUniformLocation(shaderProgram, "color");
+                if (colorLoc >= 0) GL.Uniform3(colorLoc, 1.0f, 0.0f, 0.0f); // Red color
+
+                // Use appropriate scaling for trajectory data
+                var trajModel = Matrix4.CreateScale(1e-5f, 1e-5f, 1e-5f); // Adjust scale as needed
+                var trajTransform = trajModel * view * projection;
+                transformLoc = GL.GetUniformLocation(shaderProgram, "transform");
+                GL.UniformMatrix4(transformLoc, false, ref trajTransform);
+
+                // Draw as line strip
+                GL.LineWidth(2.0f);
+                GL.DrawElements(PrimitiveType.LineStrip, sim.History.Count, DrawElementsType.UnsignedInt, 0);
+                GL.BindVertexArray(0);
+            }
+            
             // Swap buffers to display the frame
             window.SwapBuffers();
-            
         };
-
+            
         window.UpdateFrame += (FrameEventArgs args) =>
         {
             var input = window.KeyboardState;
@@ -314,31 +397,16 @@ public class Visualizer
             if (sphereVbo != 0) GL.DeleteBuffer(sphereVbo);
             if (sphereVao != 0) GL.DeleteVertexArray(sphereVao);
             if (sphereEbo != 0) GL.DeleteBuffer(sphereEbo);
+            if (trajVbo != 0) GL.DeleteBuffer(trajVbo);
+            if (trajVao != 0) GL.DeleteVertexArray(trajVao);
+            if (trajEbo != 0) GL.DeleteBuffer(trajEbo);
         };
 
         // --- Start the OpenTK event loop (blocks until window closes) ---
         window.Run();
         
-        // --- Sine wave and OpenGL state setup ---
-        // Set up OpenGL buffers, shaders, and state for the animated sine wave and text rendering
-        // This includes VAO/VBO/EBO for the sine wave, and shader compilation for both the sine and text
-
-        // --- Sphere mesh state ---
-        // Set up mesh data and OpenGL buffers for the 3D wireframe sphere
-        // Sphere vertices and indices are generated for latitude/longitude lines
-
-        // --- Text rendering state ---
-        // Set up OpenGL state for text rendering using a bitmap 8x8 font
-        // The font data is defined in BitmapFont8x8, and text is drawn using TextRenderer.DrawText
-
-        // --- Main OpenTK event handlers ---
-        // window.Load: Initializes all OpenGL resources and mesh data
-        // window.RenderFrame: Called every frame to update and render the scene (sine wave, text, sphere)
-        // window.Unload: Cleans up all OpenGL resources
-
         // --- DrawText helper ---
         // Draws ASCII text using the 8x8 bitmap font, as GL_POINTS, at the given NDC position and color.
-        // This is a local helper, but could be replaced by TextRenderer.DrawText for modularity.
         void DrawText(string text, float x, float y, float scale, float r, float g, float b)
         {
             // Get font data (8x8 bitmap font, ASCII 32-127)
@@ -374,6 +442,7 @@ public class Visualizer
                 cursorX += 9 * scale * 2f / 1200f;
             }
             if (points.Count == 0) return; // Nothing to draw
+            
             // Create temporary VBO/VAO for this text draw
             int textVboTmp = GL.GenBuffer();
             int textVaoTmp = GL.GenVertexArray();
@@ -385,8 +454,15 @@ public class Visualizer
             GL.UseProgram(shaderProgram); // Use the same simple shader as the sine wave
             int colorLoc = GL.GetUniformLocation(shaderProgram, "color");
             if (colorLoc >= 0) GL.Uniform3(colorLoc, r, g, b);
+            
+            // Use identity transform for 2D text
+            Matrix4 identityTransform = Matrix4.Identity;
+            int transformLoc = GL.GetUniformLocation(shaderProgram, "transform");
+            GL.UniformMatrix4(transformLoc, false, ref identityTransform);
+            
             GL.PointSize(scale); // Set point size for font pixels
             GL.DrawArrays(PrimitiveType.Points, 0, points.Count / 2);
+            
             // Clean up temporary resources
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
             GL.BindVertexArray(0);
