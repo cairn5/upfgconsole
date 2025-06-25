@@ -79,7 +79,8 @@ class Handler
             { GuidanceMode.Prelaunch, tgt },
             { GuidanceMode.Ascent, tgt },
             { GuidanceMode.OrbitInsertion, tgt },
-            { GuidanceMode.FinalBurn, tgt}
+            { GuidanceMode.FinalBurn, tgt},
+            { GuidanceMode.Idle, tgt}
         };
         
         sharedGuidance = new GuidanceProgram(targets, veh, sharedSim);

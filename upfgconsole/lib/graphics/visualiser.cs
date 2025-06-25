@@ -17,6 +17,8 @@ using OpenTK.Windowing.Common;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace lib.graphics;
 
@@ -34,7 +36,7 @@ public class Visualizer
 
         var gameWindowSettings = new GameWindowSettings()
         {
-            UpdateFrequency = 60.0,  // 60 FPS for smooth visualization
+            UpdateFrequency = 10.0,  // 60 FPS for smooth visualization
         };
 
         using var window = new GameWindow(gameWindowSettings, nativeWindowSettings);
@@ -42,6 +44,7 @@ public class Visualizer
         // --- OpenGL state variables ---
         int shaderProgram = 0;
         int textShaderProgram = 0;
+        int fontAtlasTexture = 0;
 
         // Vehicle representation (small sphere)
         int vehicleVao = 0, vehicleVbo = 0, vehicleEbo = 0, vehicleIndexCount = 0;
@@ -67,7 +70,7 @@ public class Visualizer
             GL.DepthFunc(DepthFunction.Less);
             GL.Enable(EnableCap.Blend);
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-            GL.ClearColor(0.05f, 0.05f, 0.1f, 1f); // Dark blue space background
+            GL.ClearColor(0.05f, 0.05f, 0.05f, 1f); // Dark grey space background
 
             // --- Shader setup ---
             string vertexShaderSource = @"
@@ -152,16 +155,24 @@ public class Visualizer
                 string textVertexShaderSource = @"
                     #version 330 core
                     layout(location = 0) in vec2 aPosition;
+                    layout(location = 1) in vec2 aTexCoord;
+                    out vec2 TexCoord;
                     void main() {
                         gl_Position = vec4(aPosition, 0.0, 1.0);
+                        TexCoord = aTexCoord;
                     }
                 ";
                 string textFragmentShaderSource = @"
                     #version 330 core
+                    in vec2 TexCoord;
                     out vec4 FragColor;
+                    uniform sampler2D fontAtlas;
                     uniform vec3 color;
                     void main() {
-                        FragColor = vec4(color, 1.0);
+                        float alpha = texture(fontAtlas, TexCoord).r;
+                        if (alpha < 0.01)
+                            discard;
+                        FragColor = vec4(color, alpha);
                     }
                 ";
                 int v = GL.CreateShader(ShaderType.VertexShader);
@@ -180,6 +191,8 @@ public class Visualizer
                 GL.DeleteShader(v);
                 GL.DeleteShader(f);
             }
+            // --- Load bitmap font atlas texture ---
+            fontAtlasTexture = BitmapAtlasTextRenderer.LoadFontAtlasTexture("lib/graphics/fonts/B612.png");
         };
 
         // --- Main render loop ---
@@ -205,12 +218,9 @@ public class Visualizer
                 MathHelper.DegreesToRadians(45f), aspectRatio, 100f, 50000000f);
 
             // Camera follows the vehicle at a distance
-            Vector3 cameraOffset = new Vector3(0, 0, 300000f);
-            Vector3 cameraPos = (OpenTK.Mathematics.Vector3)position * 3;
+            Vector3 cameraOffset = new Vector3(0, -6000000f, 0);
+            Vector3 cameraPos = (OpenTK.Mathematics.Vector3)position * 3 + cameraOffset;
             Matrix4 view = Matrix4.LookAt(cameraPos, (OpenTK.Mathematics.Vector3)position, Vector3.UnitY);
-
-            // Matrix4 view =  Matrix4.CreateTranslation(new Vector3(0, 0, -30000000));
-
 
             GL.UseProgram(shaderProgram);
 
@@ -264,7 +274,7 @@ public class Visualizer
                 GL.BufferData(BufferTarget.ArrayBuffer, keplerData.Length * sizeof(float), keplerData, BufferUsageHint.DynamicDraw);
 
                 GL.BindVertexArray(keplerVao);
-                SetUniformColor(shaderProgram, 0.0f, 1.0f, 0.0f, 0.8f); // green trail
+                SetUniformColor(shaderProgram, 3.0f, 3.0f, 1.0f, 0.8f); // blue trail
                 Matrix4 keplerTransform = view * projection;
                 SetUniformMatrix(shaderProgram, "transform", keplerTransform);
                 GL.LineWidth(2.0f);
@@ -294,9 +304,62 @@ public class Visualizer
 
             // --- Draw text information ---
             string info = DrawTextInfo((OpenTK.Mathematics.Vector3)position, (OpenTK.Mathematics.Vector3)velocity, time, mass, guidanceMode);
-            TextRenderer.DrawText(info, -0.98f, 0.92f, 1f, 1f, 1f, 1f, textShaderProgram);
+            BitmapAtlasTextRenderer.DrawText(info, -0.98f, 0.92f, 0.04f, 1f, 1f, 1f, textShaderProgram, fontAtlasTexture);
             GL.BindVertexArray(0);
             GL.UseProgram(shaderProgram);
+
+
+            // --- Draw actual / target params
+            IGuidanceTarget tgt = guidance.Targets[guidance.ActiveMode];
+            if (tgt is UPFGTarget upfgTarget)
+            {
+                string simvars = Utils.PrintVars(sim, upfgTarget, guidance.Vehicle);
+
+                string[] lines = simvars.Split('\n');
+                float y = 0.80f; // Start a bit lower than the top
+                float lineSpacing = 0.05f; // Adjust as needed for your font size
+
+                foreach (string line in lines)
+                {
+                    if (!string.IsNullOrWhiteSpace(line))
+                    {
+                        BitmapAtlasTextRenderer.DrawText(line, -0.98f, y, 0.04f, 1f, 1f, 1f, textShaderProgram, fontAtlasTexture);
+                        y -= lineSpacing;
+                    }
+                }
+                Console.WriteLine(simvars);
+                GL.BindVertexArray(0);
+                GL.UseProgram(shaderProgram);
+                
+            }
+
+            // --- Draw upfg params
+            IGuidanceMode mode = guidance.Modes[guidance.ActiveMode];
+            if (mode is UpfgMode upfgMode)
+            {
+                string simvars = Utils.PrintUPFG(upfgMode.upfg, sim);
+
+                string[] lines = simvars.Split('\n');
+                float y = 0.80f; // Start a bit lower than the top
+                float lineSpacing = 0.05f; // Adjust as needed for your font size
+
+                foreach (string line in lines)
+                {
+                    if (!string.IsNullOrWhiteSpace(line))
+                    {
+                        BitmapAtlasTextRenderer.DrawText(line, -0.5f, y, 0.04f, 1f, 1f, 1f, textShaderProgram, fontAtlasTexture);
+                        y -= lineSpacing;
+                    }
+                }
+                Console.WriteLine(simvars);
+                GL.BindVertexArray(0);
+                GL.UseProgram(shaderProgram);
+
+            }
+
+            
+
+            
 
             window.SwapBuffers();
         };
@@ -626,5 +689,106 @@ public static class TextRenderer
         GL.BindVertexArray(0);
         GL.DeleteBuffer(textVboTmp);
         GL.DeleteVertexArray(textVaoTmp);
+    }
+}
+
+// --- BitmapAtlasTextRenderer: renders text using a bitmap font atlas (5x19 grid, ASCII order) ---
+public static class BitmapAtlasTextRenderer
+{
+    // Font atlas properties
+    private const int GlyphWidth = 20;
+    private const int GlyphHeight = 36;
+    private const int AtlasCols = 19;
+    private const int AtlasRows = 5;
+    private const int FirstChar = 32; // ASCII space
+
+    // Loads the font atlas PNG as an OpenGL texture using ImageSharp
+    public static int LoadFontAtlasTexture(string path)
+    {
+        using var image = SixLabors.ImageSharp.Image.Load<SixLabors.ImageSharp.PixelFormats.Rgba32>(path);
+        int width = image.Width;
+        int height = image.Height;
+        var pixels = new byte[width * height * 4];
+        image.CopyPixelDataTo(pixels);
+        int tex = GL.GenTexture();
+        GL.BindTexture(TextureTarget.Texture2D, tex);
+        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, width, height, 0, OpenTK.Graphics.OpenGL.PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+        GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+        GL.BindTexture(TextureTarget.Texture2D, 0);
+        return tex;
+    }
+
+    // Draws text using the font atlas at (x, y) in NDC, with scale (height in NDC), color, shader, and texture
+    public static void DrawText(string text, float x, float y, float scale, float r, float g, float b, int shaderProgram, int fontAtlasTexture)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        float aspect = GlyphWidth / (float)GlyphHeight;
+        float glyphW = scale * aspect;
+        float glyphH = scale;
+        int maxQuads = text.Length;
+        float[] vertices = new float[maxQuads * 4 * 4]; // 4 verts per quad, 4 floats (pos.xy, uv.xy)
+        int[] indices = new int[maxQuads * 6]; // 6 indices per quad
+        int quad = 0;
+        float cursorX = x;
+        for (int i = 0; i < text.Length; i++)
+        {
+            char c = text[i];
+            int charIdx = c - FirstChar;
+            if (charIdx < 0 || charIdx >= AtlasCols * AtlasRows) { cursorX += glyphW; continue; }
+            int col = charIdx % AtlasCols;
+            int row = charIdx / AtlasCols;
+            float u0 = col / (float)AtlasCols;
+            float v0 = row / (float)AtlasRows;
+            float u1 = (col + 1) / (float)AtlasCols;
+            float v1 = (row + 1) / (float)AtlasRows;
+            float x0 = cursorX;
+            float y0 = y;
+            float x1 = cursorX + glyphW;
+            float y1 = y - glyphH;
+            int vbase = quad * 16;
+            vertices[vbase + 0] = x0; vertices[vbase + 1] = y0; vertices[vbase + 2] = u0; vertices[vbase + 3] = v0;
+            vertices[vbase + 4] = x1; vertices[vbase + 5] = y0; vertices[vbase + 6] = u1; vertices[vbase + 7] = v0;
+            vertices[vbase + 8] = x1; vertices[vbase + 9] = y1; vertices[vbase + 10] = u1; vertices[vbase + 11] = v1;
+            vertices[vbase + 12] = x0; vertices[vbase + 13] = y1; vertices[vbase + 14] = u0; vertices[vbase + 15] = v1;
+            int ibase = quad * 6;
+            indices[ibase + 0] = quad * 4 + 0;
+            indices[ibase + 1] = quad * 4 + 1;
+            indices[ibase + 2] = quad * 4 + 2;
+            indices[ibase + 3] = quad * 4 + 2;
+            indices[ibase + 4] = quad * 4 + 3;
+            indices[ibase + 5] = quad * 4 + 0;
+            quad++;
+            cursorX += 0.6f * glyphW;
+        }
+        if (quad == 0) return;
+        int vbo = GL.GenBuffer();
+        int vao = GL.GenVertexArray();
+        int ebo = GL.GenBuffer();
+        GL.BindVertexArray(vao);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
+        GL.BufferData(BufferTarget.ArrayBuffer, quad * 4 * 4 * sizeof(float), vertices, BufferUsageHint.StreamDraw);
+        GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, 4 * sizeof(float), 0);
+        GL.EnableVertexAttribArray(0);
+        GL.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 4 * sizeof(float), 2 * sizeof(float));
+        GL.EnableVertexAttribArray(1);
+        GL.BindBuffer(BufferTarget.ElementArrayBuffer, ebo);
+        GL.BufferData(BufferTarget.ElementArrayBuffer, quad * 6 * sizeof(int), indices, BufferUsageHint.StreamDraw);
+        GL.UseProgram(shaderProgram);
+        int colorLoc = GL.GetUniformLocation(shaderProgram, "color");
+        if (colorLoc >= 0) GL.Uniform3(colorLoc, r, g, b);
+        GL.ActiveTexture(TextureUnit.Texture0);
+        GL.BindTexture(TextureTarget.Texture2D, fontAtlasTexture);
+        int texLoc = GL.GetUniformLocation(shaderProgram, "fontAtlas");
+        if (texLoc >= 0) GL.Uniform1(texLoc, 0);
+        GL.DrawElements(PrimitiveType.Triangles, quad * 6, DrawElementsType.UnsignedInt, 0);
+        GL.BindTexture(TextureTarget.Texture2D, 0);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+        GL.BindVertexArray(0);
+        GL.DeleteBuffer(vbo);
+        GL.DeleteBuffer(ebo);
+        GL.DeleteVertexArray(vao);
     }
 }

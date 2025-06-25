@@ -38,7 +38,7 @@ public interface IGuidanceMode
 
 public class UpfgMode : IGuidanceMode
 {
-    private Upfg upfg = new Upfg();
+    public Upfg upfg = new Upfg();
     public bool Converged => upfg.ConvergenceFlag;
     public bool StagingFlag { get; set; } = false;
     public Vector3? PrevSteering = new();

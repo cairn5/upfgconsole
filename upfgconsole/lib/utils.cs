@@ -386,7 +386,7 @@ public static class Utils
         guidance.PrevVals.rbias.X, guidance.PrevVals.rbias.Y, guidance.PrevVals.rbias.Z);
     }
 
-    public static void PrintUPFG(Upfg guidance, Simulator sim)
+    public static string PrintUPFG(Upfg guidance, Simulator sim)
     {
 
         Console.WriteLine("--------------------GUIDANCE PARAMETERS -------------------");
@@ -399,13 +399,14 @@ public static class Utils
             guidance.PrevVals.rgrav.Length().ToString("F1").PadLeft(6),
             guidance.PrevVals.rbias.Length().ToString("F1").PadLeft(6)
         );
-        upfgTable.Write(Format.Alternative);
+        // upfgTable.Write(Format.Alternative);
+        return upfgTable.ToString();
     }
 
-    public static void PrintVars(Simulator sim, UPFGTarget tgt, Vehicle veh)
+    public static string PrintVars(Simulator sim, UPFGTarget tgt, Vehicle veh)
     {
 
-        
+
         Console.CursorVisible = false;
 
         Console.WriteLine("-------- ORBITAL ELEMENTS --------");
@@ -428,7 +429,7 @@ public static class Utils
             sim.State.Kepler["e"].ToString("F4").PadLeft(6),
             tgt.ecc.ToString("F4").PadLeft(6));
 
-        transposedTable.Write(Format.Alternative);
+        // transposedTable.Write(Format.Alternative);
 
         Console.SetCursorPosition(40, 5);
         Console.WriteLine("-----------");
@@ -457,6 +458,8 @@ public static class Utils
 
         Console.SetCursorPosition(40, 15);
         Console.WriteLine("STAGES: " + veh.Stages.Count().ToString());
+
+        return transposedTable.ToString();
 
         // Console.WriteLine("----- ORBITAL ELEMENTS -----");
         // var orbitTable = new ConsoleTable("ap","pe", "INC", "LAN", "ECC");
