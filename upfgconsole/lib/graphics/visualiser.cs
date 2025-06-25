@@ -22,452 +22,345 @@ namespace lib.graphics;
 
 public class Visualizer
 {
-    // Entry point for real-time OpenGL visualization.
-    // Opens an OpenTK window and renders the animated scene (sine wave, text, sphere).
+    // Entry point for real-time OpenGL visualization with live simulation data
     public static void PlotRealtimeSync(Simulator sim, GuidanceProgram guidance)
     {
         // --- Window setup ---
-        // Configure window size and title for the OpenTK GameWindow.
         var nativeWindowSettings = new NativeWindowSettings()
         {
             ClientSize = new Vector2i(1200, 800),
-            Title = "OpenTK Modern Shader Sine Wave Demo",
+            Title = "Real-time Rocket Trajectory Visualization",
         };
 
-        // --- Window setup with framerate control ---
         var gameWindowSettings = new GameWindowSettings()
         {
-            UpdateFrequency = 10.0,  // Set your desired update rate
+            UpdateFrequency = 60.0,  // 60 FPS for smooth visualization
         };
         
-        // Create the OpenTK GameWindow (main OpenGL context and event loop).
         using var window = new GameWindow(gameWindowSettings, nativeWindowSettings);
 
-        // --- Sine wave state ---
-        int shaderProgram = 0, vao = 0, vbo = 0; // OpenGL handles for sine wave
-        int numPoints = 400; // Number of points in the sine wave
-        float[] vertices = new float[numPoints * 2]; // (x, y) pairs for sine wave
-        uint[] indices = new uint[numPoints]; // Indices for line strip
-        double phase = 0; // Phase offset for animation
-        double speed = 0.5 * Math.PI / 2; // Sine wave speed (1 period every 2 seconds)
+        // --- OpenGL state variables ---
+        int shaderProgram = 0;
+        
+        // Vehicle representation (small sphere)
+        int vehicleVao = 0, vehicleVbo = 0, vehicleEbo = 0, vehicleIndexCount = 0;
+        
+        // Trajectory trail
+        int trajVao = 0, trajVbo = 0;
+        List<Vector3> trajectoryPoints = new List<Vector3>();
+        
+        // Earth sphere
+        int earthVao = 0, earthVbo = 0, earthEbo = 0, earthIndexCount = 0;
+        
+        // Steering vector
+        int steeringVao = 0, steeringVbo = 0;
 
-        // --- Text rendering state ---
-        int textVao = 0, textVbo = 0; // VAO/VBO for text quad (not used in GL_POINTS font rendering)
-        int textShader = 0; // Shader for text (not used in GL_POINTS font rendering)
-
-        // --- Sphere mesh state (must be accessible in RenderFrame and Unload) ---
-        int sphereIndexCount = 0; // Number of indices for sphere mesh
-        int sphereVao = 0, sphereVbo = 0, sphereEbo = 0; // OpenGL handles for sphere
-
-        // --- Trajectory state
-        int trajIndexCount = 0;
-        int trajVao = 0, trajVbo = 0, trajEbo = 0;
-
-        // --- (Legacy) Textured quad shader sources (not used for GL_POINTS font) ---
-        string textVertexShaderSrc = "#version 330 core\nlayout(location=0) in vec2 aPos;layout(location=1) in vec2 aTex;out vec2 TexCoord;void main(){gl_Position=vec4(aPos,0,1);TexCoord=aTex;}";
-        string textFragmentShaderSrc = "#version 330 core\nin vec2 TexCoord;out vec4 FragColor;uniform sampler2D tex;void main(){FragColor = texture(tex,TexCoord);}";
-
-        // --- OpenGL resource and mesh initialization ---
+        // --- OpenGL initialization ---
         window.Load += () =>
         {
-            // Print OpenGL version for debugging
             Console.WriteLine($"OpenGL Version: {GL.GetString(StringName.Version)}");
             GL.Enable(EnableCap.DepthTest);
             GL.DepthFunc(DepthFunction.Less);
+            GL.Enable(EnableCap.Blend);
+            GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+            GL.ClearColor(0.05f, 0.05f, 0.1f, 1f); // Dark blue space background
 
-            // --- Shader setup (modern OpenGL, core profile) ---
-            // Vertex shader: accepts 3D position, applies transform matrix
-            string vertexShaderSource = "#version 330 core\nlayout(location = 0) in vec3 aPosition;\nuniform mat4 transform;\nvoid main(){gl_Position = transform * vec4(aPosition, 1.0) ;}";
-            // Fragment shader: outputs solid color from uniform
-            string fragmentShaderSource = "#version 330 core\nout vec4 FragColor;\nuniform vec3 color;\nvoid main(){FragColor = vec4(color, 1.0);}";
+            // --- Shader setup ---
+            string vertexShaderSource = @"
+                #version 330 core
+                layout(location = 0) in vec3 aPosition;
+                uniform mat4 transform;
+                void main()
+                {
+                    gl_Position = transform * vec4(aPosition, 1.0);
+                }";
             
-            // Compile vertex shader
+            string fragmentShaderSource = @"
+                #version 330 core
+                out vec4 FragColor;
+                uniform vec3 color;
+                uniform float alpha;
+                void main()
+                {
+                    FragColor = vec4(color, alpha);
+                }";
+
+            // Compile and link shaders
             int vertexShader = GL.CreateShader(ShaderType.VertexShader);
             GL.ShaderSource(vertexShader, vertexShaderSource);
             GL.CompileShader(vertexShader);
-            
-            // Check compilation status
-            GL.GetShader(vertexShader, ShaderParameter.CompileStatus, out int vertexStatus);
-            if (vertexStatus == 0)
-            {
-                string infoLog = GL.GetShaderInfoLog(vertexShader);
-                Console.WriteLine($"Vertex shader compilation failed: {infoLog}");
-            }
+            CheckShaderCompilation(vertexShader, "vertex");
 
-            // Compile fragment shader
             int fragmentShader = GL.CreateShader(ShaderType.FragmentShader);
             GL.ShaderSource(fragmentShader, fragmentShaderSource);
             GL.CompileShader(fragmentShader);
-            
-            // Check compilation status
-            GL.GetShader(fragmentShader, ShaderParameter.CompileStatus, out int fragStatus);
-            if (fragStatus == 0)
-            {
-                string infoLog = GL.GetShaderInfoLog(fragmentShader);
-                Console.WriteLine($"Fragment shader compilation failed: {infoLog}");
-            }
+            CheckShaderCompilation(fragmentShader, "fragment");
 
-            // Link shaders into a program
             shaderProgram = GL.CreateProgram();
             GL.AttachShader(shaderProgram, vertexShader);
             GL.AttachShader(shaderProgram, fragmentShader);
             GL.LinkProgram(shaderProgram);
-            
-            // Check linking status
-            GL.GetProgram(shaderProgram, GetProgramParameterName.LinkStatus, out int linkStatus);
-            if (linkStatus == 0)
-            {
-                string infoLog = GL.GetProgramInfoLog(shaderProgram);
-                Console.WriteLine($"Shader program linking failed: {infoLog}");
-            }
+            CheckProgramLinking(shaderProgram);
 
-            // Clean up shader objects (no longer needed after linking)
             GL.DeleteShader(vertexShader);
             GL.DeleteShader(fragmentShader);
 
-            // --- Sine wave VAO/VBO/EBO setup ---
-            // Prepare index buffer for line strip
-            for (uint i = 0; i < numPoints; i++) indices[i] = i;
-            vao = GL.GenVertexArray();
-            vbo = GL.GenBuffer();
-            int ebo = GL.GenBuffer();
-            GL.BindVertexArray(vao);
-            GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
-            GL.BufferData(BufferTarget.ArrayBuffer, vertices.Length * sizeof(float), vertices, BufferUsageHint.DynamicDraw);
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, ebo);
-            GL.BufferData(BufferTarget.ElementArrayBuffer, indices.Length * sizeof(uint), indices, BufferUsageHint.StaticDraw);
-            GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, 2 * sizeof(float), 0);
-            GL.EnableVertexAttribArray(0);
-            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-            GL.BindVertexArray(0);
-            // Set background color (dark gray)
-            GL.ClearColor(0.1f, 0.1f, 0.1f, 1f);
-
-            // -- Trajectory Setup
-            if (sim.History.Count > 0)
-            {
-                float[] trajVertices = new float[sim.History.Count * 3]; // 3 floats per vertex (x,y,z)
-                uint[] trajIndices = new uint[sim.History.Count];
-                for (uint i = 0; i < sim.History.Count; i++) trajIndices[i] = i;
-
-                trajVao = GL.GenVertexArray();
-                trajVbo = GL.GenBuffer();
-                trajEbo = GL.GenBuffer();
-                GL.BindVertexArray(trajVao);
-                GL.BindBuffer(BufferTarget.ArrayBuffer, trajVbo);
-                GL.BufferData(BufferTarget.ArrayBuffer, trajVertices.Length * sizeof(float), trajVertices, BufferUsageHint.DynamicDraw);
-                GL.BindBuffer(BufferTarget.ElementArrayBuffer, trajEbo);
-                GL.BufferData(BufferTarget.ElementArrayBuffer, trajIndices.Length * sizeof(uint), trajIndices, BufferUsageHint.StaticDraw);
-                GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), 0); // 3 components per vertex
-                GL.EnableVertexAttribArray(0);
-                GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-                GL.BindVertexArray(0);
-            }
-
-            // --- (Legacy) Text shader and quad setup (not used for GL_POINTS font) ---
-            int v = GL.CreateShader(ShaderType.VertexShader);
-            GL.ShaderSource(v, textVertexShaderSrc);
-            GL.CompileShader(v);
-            int f = GL.CreateShader(ShaderType.FragmentShader);
-            GL.ShaderSource(f, textFragmentShaderSrc);
-            GL.CompileShader(f);
-            textShader = GL.CreateProgram();
-            GL.AttachShader(textShader, v);
-            GL.AttachShader(textShader, f);
-            GL.LinkProgram(textShader);
-            GL.DeleteShader(v);
-            GL.DeleteShader(f);
+            // --- Create Earth sphere ---
+            CreateSphere(out earthVao, out earthVbo, out earthEbo, out earthIndexCount, 6371000f, 32, 72); // Earth radius in meters
             
-            // Text quad VAO/VBO (not used for GL_POINTS font, but left for reference)
-            float[] quad = {
-                -1f,  1f, 0f, 0f,
-                -0.6f, 1f, 1f, 0f,
-                -0.6f, 0.9f, 1f, 1f,
-                -1f,  0.9f, 0f, 1f
-            };
-            uint[] quadIdx = { 0, 1, 2, 2, 3, 0 };
-            textVao = GL.GenVertexArray();
-            textVbo = GL.GenBuffer();
-            int textEbo = GL.GenBuffer();
-            GL.BindVertexArray(textVao);
-            GL.BindBuffer(BufferTarget.ArrayBuffer, textVbo);
-            GL.BufferData(BufferTarget.ArrayBuffer, quad.Length * sizeof(float), quad, BufferUsageHint.StaticDraw);
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, textEbo);
-            GL.BufferData(BufferTarget.ElementArrayBuffer, quadIdx.Length * sizeof(uint), quadIdx, BufferUsageHint.StaticDraw);
-            GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, 4 * sizeof(float), 0);
-            GL.EnableVertexAttribArray(0);
-            GL.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 4 * sizeof(float), 2 * sizeof(float));
-            GL.EnableVertexAttribArray(1);
-            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-            GL.BindVertexArray(0);
-
-            // --- Sphere mesh generation (latitude/longitude lines) ---
-            // Generate vertices and indices for a 3D sphere mesh (for wireframe rendering)
-            List<float> sphereVertices = new();
-            List<uint> sphereIndices = new();
-            int sphereLat = 18, sphereLon = 36; // Sphere resolution (latitude/longitude divisions)
-            float sphereRadius = 0.5f; // Sphere radius (NDC units)
-            for (int lat = 0; lat <= sphereLat; lat++)
-            {
-                float theta = (float)Math.PI * lat / sphereLat;
-                float y = (float)Math.Cos(theta) * sphereRadius;
-                float r = (float)Math.Sin(theta) * sphereRadius;
-                for (int lon = 0; lon <= sphereLon; lon++)
-                {
-                    float phi = 2f * (float)Math.PI * lon / sphereLon;
-                    float x = (float)Math.Cos(phi) * r;
-                    float z = (float)Math.Sin(phi) * r;
-                    // Store (x, y, z) for each sphere vertex
-                    sphereVertices.Add(x);
-                    sphereVertices.Add(y);
-                    sphereVertices.Add(z);
-                }
-            }
-            // Generate indices for sphere triangles (for wireframe rendering)
-            for (int lat = 0; lat < sphereLat; lat++)
-            {
-                for (int lon = 0; lon < sphereLon; lon++)
-                {
-                    int i0 = lat * (sphereLon + 1) + lon;
-                    int i1 = i0 + 1;
-                    int i2 = i0 + (sphereLon + 1);
-                    int i3 = i2 + 1;
-                    // Two triangles per quad (for full mesh, but drawn as wireframe)
-                    sphereIndices.Add((uint)i0);
-                    sphereIndices.Add((uint)i2);
-                    sphereIndices.Add((uint)i1);
-                    sphereIndices.Add((uint)i1);
-                    sphereIndices.Add((uint)i2);
-                    sphereIndices.Add((uint)i3);
-                }
-            }
-            sphereIndexCount = sphereIndices.Count;
-            // Sphere VAO/VBO/EBO setup (3 floats per vertex)
-            sphereVao = GL.GenVertexArray();
-            sphereVbo = GL.GenBuffer();
-            sphereEbo = GL.GenBuffer();
-            GL.BindVertexArray(sphereVao);
-            GL.BindBuffer(BufferTarget.ArrayBuffer, sphereVbo);
-            GL.BufferData(BufferTarget.ArrayBuffer, sphereVertices.Count * sizeof(float), sphereVertices.ToArray(), BufferUsageHint.DynamicDraw);
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, sphereEbo);
-            GL.BufferData(BufferTarget.ElementArrayBuffer, sphereIndices.Count * sizeof(uint), sphereIndices.ToArray(), BufferUsageHint.DynamicDraw);
+            // --- Create small vehicle sphere ---
+            CreateSphere(out vehicleVao, out vehicleVbo, out vehicleEbo, out vehicleIndexCount, 500f, 8, 6); // Small vehicle representation
+            
+            // --- Create trajectory VAO ---
+            trajVao = GL.GenVertexArray();
+            trajVbo = GL.GenBuffer();
+            GL.BindVertexArray(trajVao);
+            GL.BindBuffer(BufferTarget.ArrayBuffer, trajVbo);
+            GL.BufferData(BufferTarget.ArrayBuffer, 0, IntPtr.Zero, BufferUsageHint.DynamicDraw); // Empty buffer initially
             GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), 0);
             GL.EnableVertexAttribArray(0);
-            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+            GL.BindVertexArray(0);
+            
+            // --- Create steering vector VAO ---
+            steeringVao = GL.GenVertexArray();
+            steeringVbo = GL.GenBuffer();
+            GL.BindVertexArray(steeringVao);
+            GL.BindBuffer(BufferTarget.ArrayBuffer, steeringVbo);
+            GL.BufferData(BufferTarget.ArrayBuffer, 6 * sizeof(float), new float[6], BufferUsageHint.DynamicDraw); // Two points (line)
+            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), 0);
+            GL.EnableVertexAttribArray(0);
             GL.BindVertexArray(0);
         };
 
-        // --- Main render loop: called every frame ---
+        // --- Main render loop ---
         window.RenderFrame += (FrameEventArgs args) =>
         {
-            // Clear the color and depth buffers
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            
+            // Get current simulation state
+            var (position, velocity, time, mass) = Handler.GetCurrentState();
+            var trajectoryHistory = Handler.GetTrajectoryHistory();
+            var (steering, guidanceMode) = Handler.GetGuidanceInfo();
+            
+            // // Exit if simulation is done
+            // if (!Handler.IsSimulationRunning())
+            // {
+            //     window.Close();
+            //     return;
+            // }
 
+            // --- Camera setup ---
             float aspectRatio = window.Size.X / (float)window.Size.Y;
             Matrix4 projection = Matrix4.CreatePerspectiveFieldOfView(
-                MathHelper.DegreesToRadians(80f),
-                aspectRatio,
-                0.1f,
-                200.0f
-            );
+                MathHelper.DegreesToRadians(45f), aspectRatio, 1000f, 50000000f);
 
-            // Position camera looking at origin from positive Z
-            Matrix4 view = Matrix4.LookAt(
-                new Vector3(0f, 0.5f, 1f),  // Camera position (moved to positive Z)
-                new Vector3(0f, 0f, 0f),    // Look at origin
-                Vector3.UnitY               // Up vector
-            );
+            // Camera follows the vehicle at a distance
+            // Vector3 cameraOffset = new Vector3(0, 0, 150000f); // 15,000 km behind
+            // Vector3 cameraPos = (OpenTK.Mathematics.Vector3)position + cameraOffset;
+            // Matrix4 view = Matrix4.LookAt(cameraPos, (OpenTK.Mathematics.Vector3)position, Vector3.UnitY);
 
-            // Update sine wave animation
-            phase += speed * args.Time;
-            for (int i = 0; i < numPoints; i++)
+            Matrix4 view =  Matrix4.CreateTranslation(new Vector3(0, 0, -30000000));
+            GL.UseProgram(shaderProgram);
+
+            // --- Draw Earth ---
+            GL.BindVertexArray(earthVao);
+            SetUniformColor(shaderProgram, 0.3f, 0.7f, 1.0f, 1.0f); // Blue Earth
+            Matrix4 earthTransform = Matrix4.CreateTranslation(Vector3.Zero) * view * projection;
+            SetUniformMatrix(shaderProgram, "transform", earthTransform);
+            GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Line);
+            GL.DrawElements(PrimitiveType.Triangles, earthIndexCount, DrawElementsType.UnsignedInt, 0);
+            GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Fill);
+
+            // --- Draw vehicle ---
+            if ((OpenTK.Mathematics.Vector3)position != Vector3.Zero)
             {
-                float x = (float)i / (numPoints - 1) * 4f - 2f; // X from -2 to 2
-                float y = (float)Math.Sin(x + phase);            // Sine wave with phase
-                vertices[i * 2] = x;
-                vertices[i * 2 + 1] = y;
+                GL.BindVertexArray(vehicleVao);
+                SetUniformColor(shaderProgram, 1.0f, 0.5f, 0.0f, 1.0f); // Orange vehicle
+                Matrix4 vehicleTransform = Matrix4.CreateTranslation((OpenTK.Mathematics.Vector3)position) * view * projection;
+                SetUniformMatrix(shaderProgram, "transform", vehicleTransform);
+                GL.DrawElements(PrimitiveType.Triangles, vehicleIndexCount, DrawElementsType.UnsignedInt, 0);
             }
 
-            // Update sine wave VBO
-            GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
-            GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, vertices.Length * sizeof(float), vertices);
-            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-
-            // Draw sine wave as a line strip (2D, using identity transform)
-            GL.UseProgram(shaderProgram);
-            GL.BindVertexArray(vao);
-            int colorLoc = GL.GetUniformLocation(shaderProgram, "color");
-            if (colorLoc >= 0) GL.Uniform3(colorLoc, 1.0f, 1.0f, 0.0f); // Yellow color
-            
-            // Use identity transform for 2D sine wave
-            Matrix4 identityTransform = Matrix4.Identity;
-            int transformLoc = GL.GetUniformLocation(shaderProgram, "transform");
-            GL.UniformMatrix4(transformLoc, false, ref identityTransform);
-            
-            GL.LineWidth(2.0f);
-            // GL.DrawElements(PrimitiveType.LineStrip, numPoints, DrawElementsType.UnsignedInt, 0);
-            // GL.BindVertexArray(0);
-
-            // --- Draw simulation time and text using bitmap font ---
-            float simTime = (float)phase / (float)speed; // Fake sim time for demo
-            string timeStr = $"t = {simTime:F2}s";
-            DrawText(timeStr, -0.98f, 0.95f, 12f, 1f, 1f, 0.2f); // Top-left, yellowish
-            DrawText("the quick brown fox jumped over the lazy dog", -0.98f, 0.1f, 2f, 1f, 1f, 1f);
-            DrawText("THE QUICK BROWN FOX JUMPED\n OVER THE LAZY DOG", -0.98f, -0.1f, 2f, 1f, 1f, 1f);
-
-            // --- Draw 3D wireframe sphere (latitude/longitude lines) ---
-            GL.UseProgram(shaderProgram);
-            GL.BindVertexArray(sphereVao);
-            colorLoc = GL.GetUniformLocation(shaderProgram, "color");
-            if (colorLoc >= 0) GL.Uniform3(colorLoc, 0.2f, 0.6f, 1.0f); // Blue color for sphere
-            double time = phase / speed;
-            
-            // Compose transform: rotate Y (animation), scale, view, projection
-            var model = Matrix4.CreateScale(1f, 1f, 1f);
-            var transform = model * view * projection;
-
-            transformLoc = GL.GetUniformLocation(shaderProgram, "transform");
-            GL.UniformMatrix4(transformLoc, false, ref transform);
-            
-            // Draw sphere as wireframe (PolygonMode.Line)
-            GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Line);
-            GL.DrawElements(PrimitiveType.Triangles, sphereIndexCount, DrawElementsType.UnsignedInt, 0);
-            GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Fill); // Restore fill mode
-            GL.BindVertexArray(0);
-
-            if (sim.History.Count > 0 && trajVao != 0)
+            // --- Draw trajectory trail ---
+            if (trajectoryHistory.Count > 1)
             {
-                // Update trajectory vertices with 3D positions
-                float[] trajVertices = new float[sim.History.Count * 3];
-                for (int i = 0; i < sim.History.Count; i++)
+                // Convert trajectory to float array
+                float[] trajData = new float[trajectoryHistory.Count * 3];
+                for (int i = 0; i < trajectoryHistory.Count; i++)
                 {
-                    trajVertices[i * 3] = sim.History[i].r.X;     // X
-                    trajVertices[i * 3 + 1] = sim.History[i].r.Y; // Y  
-                    trajVertices[i * 3 + 2] = sim.History[i].r.Z; // Z
+                    trajData[i * 3] = trajectoryHistory[i].X;
+                    trajData[i * 3 + 1] = trajectoryHistory[i].Y;
+                    trajData[i * 3 + 2] = trajectoryHistory[i].Z;
                 }
 
-                // Update trajectory VBO
                 GL.BindBuffer(BufferTarget.ArrayBuffer, trajVbo);
-                GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, trajVertices.Length * sizeof(float), trajVertices);
-                GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-
-                // Draw trajectory as 3D line
-                GL.UseProgram(shaderProgram);
+                GL.BufferData(BufferTarget.ArrayBuffer, trajData.Length * sizeof(float), trajData, BufferUsageHint.DynamicDraw);
+                
                 GL.BindVertexArray(trajVao);
-
-                // Set trajectory color (e.g., red)
-                colorLoc = GL.GetUniformLocation(shaderProgram, "color");
-                if (colorLoc >= 0) GL.Uniform3(colorLoc, 1.0f, 0.0f, 0.0f); // Red color
-
-                // Use appropriate scaling for trajectory data
-                var trajModel = Matrix4.CreateScale(1e-5f, 1e-5f, 1e-5f); // Adjust scale as needed
-                var trajTransform = trajModel * view * projection;
-                transformLoc = GL.GetUniformLocation(shaderProgram, "transform");
-                GL.UniformMatrix4(transformLoc, false, ref trajTransform);
-
-                // Draw as line strip
+                SetUniformColor(shaderProgram, 1.0f, 1.0f, 0.0f, 0.8f); // Yellow trail
+                Matrix4 trajTransform = view * projection;
+                SetUniformMatrix(shaderProgram, "transform", trajTransform);
                 GL.LineWidth(2.0f);
-                GL.DrawElements(PrimitiveType.LineStrip, sim.History.Count, DrawElementsType.UnsignedInt, 0);
-                GL.BindVertexArray(0);
+                GL.DrawArrays(PrimitiveType.LineStrip, 0, trajectoryHistory.Count);
             }
-            
-            // Swap buffers to display the frame
+
+            // --- Draw steering vector ---
+            if ((OpenTK.Mathematics.Vector3)steering != Vector3.Zero && (OpenTK.Mathematics.Vector3)position != Vector3.Zero)
+            {
+                Vector3 steeringEnd = (OpenTK.Mathematics.Vector3)position + Vector3.Normalize((OpenTK.Mathematics.Vector3)steering) * 2000000f; // 2000 km long
+                float[] steeringData = {
+                    position.X, position.Y, position.Z,
+                    steeringEnd.X, steeringEnd.Y, steeringEnd.Z
+                };
+
+                GL.BindBuffer(BufferTarget.ArrayBuffer, steeringVbo);
+                GL.BufferData(BufferTarget.ArrayBuffer, steeringData.Length * sizeof(float), steeringData, BufferUsageHint.DynamicDraw);
+                
+                GL.BindVertexArray(steeringVao);
+                SetUniformColor(shaderProgram, 0.0f, 1.0f, 0.0f, 1.0f); // Green steering vector
+                Matrix4 steeringTransform = view * projection;
+                SetUniformMatrix(shaderProgram, "transform", steeringTransform);
+                GL.LineWidth(3.0f);
+                GL.DrawArrays(PrimitiveType.Lines, 0, 2);
+            }
+
+            // --- Draw text information ---
+            DrawTextInfo((OpenTK.Mathematics.Vector3)position, (OpenTK.Mathematics.Vector3)velocity, time, mass, guidanceMode);
+
             window.SwapBuffers();
         };
-            
+
         window.UpdateFrame += (FrameEventArgs args) =>
         {
             var input = window.KeyboardState;
             if (input.IsKeyDown(OpenTK.Windowing.GraphicsLibraryFramework.Keys.Escape))
             {
-                window.Close(); // This exits the window loop
+                window.Close();
             }
         };
 
-        // --- Resource cleanup: called when window is closed ---
+        // --- Cleanup ---
         window.Unload += () =>
         {
-            // Delete all OpenGL resources (buffers, shaders, VAOs)
-            if (vbo != 0) GL.DeleteBuffer(vbo);
-            if (vao != 0) GL.DeleteVertexArray(vao);
-            if (shaderProgram != 0) GL.DeleteProgram(shaderProgram);
-            if (textVao != 0) GL.DeleteVertexArray(textVao);
-            if (textVbo != 0) GL.DeleteBuffer(textVbo);
-            if (textShader != 0) GL.DeleteProgram(textShader);
-            if (sphereVbo != 0) GL.DeleteBuffer(sphereVbo);
-            if (sphereVao != 0) GL.DeleteVertexArray(sphereVao);
-            if (sphereEbo != 0) GL.DeleteBuffer(sphereEbo);
-            if (trajVbo != 0) GL.DeleteBuffer(trajVbo);
-            if (trajVao != 0) GL.DeleteVertexArray(trajVao);
-            if (trajEbo != 0) GL.DeleteBuffer(trajEbo);
+            GL.DeleteVertexArray(earthVao);
+            GL.DeleteBuffer(earthVbo);
+            GL.DeleteBuffer(earthEbo);
+            GL.DeleteVertexArray(vehicleVao);
+            GL.DeleteBuffer(vehicleVbo);
+            GL.DeleteBuffer(vehicleEbo);
+            GL.DeleteVertexArray(trajVao);
+            GL.DeleteBuffer(trajVbo);
+            GL.DeleteVertexArray(steeringVao);
+            GL.DeleteBuffer(steeringVbo);
+            GL.DeleteProgram(shaderProgram);
         };
 
-        // --- Start the OpenTK event loop (blocks until window closes) ---
         window.Run();
-        
-        // --- DrawText helper ---
-        // Draws ASCII text using the 8x8 bitmap font, as GL_POINTS, at the given NDC position and color.
-        void DrawText(string text, float x, float y, float scale, float r, float g, float b)
+    }
+
+    // --- Helper methods ---
+    private static void CreateSphere(out int vao, out int vbo, out int ebo, out int indexCount, float radius, int latSegments, int lonSegments)
+    {
+        List<float> vertices = new List<float>();
+        List<uint> indices = new List<uint>();
+
+        // Generate vertices
+        for (int lat = 0; lat <= latSegments; lat++)
         {
-            // Get font data (8x8 bitmap font, ASCII 32-127)
-            var font8x8 = BitmapFont8x8.Font;
-            List<float> points = new(); // List of (x, y) points to draw
-            float cursorX = x; // Current X position (NDC)
-            foreach (char c in text)
+            float theta = (float)Math.PI * lat / latSegments;
+            float y = (float)Math.Cos(theta) * radius;
+            float r = (float)Math.Sin(theta) * radius;
+
+            for (int lon = 0; lon <= lonSegments; lon++)
             {
-                // Skip unknown characters (advance cursor)
-                if (!font8x8.TryGetValue(c, out var glyph))
-                {
-                    cursorX += 9 * scale * 2f / 1200f;
-                    continue;
-                }
-                // For each row in the glyph (8 rows)
-                for (int row = 0; row < 8; row++)
-                {
-                    byte rowData = glyph[row];
-                    for (int col = 0; col < 8; col++)
-                    {
-                        // If bit is set, add a point for this pixel
-                        // (col is flipped so bits are drawn left-to-right)
-                        if (((rowData >> col) & 1) != 0)
-                        {
-                            float px = cursorX + col * scale * 2f / 1200f;
-                            float py = y - row * scale * 2f / 800f;
-                            points.Add(px);
-                            points.Add(py);
-                        }
-                    }
-                }
-                // Advance cursor for next character (9 units for spacing)
-                cursorX += 9 * scale * 2f / 1200f;
+                float phi = 2f * (float)Math.PI * lon / lonSegments;
+                float x = (float)Math.Cos(phi) * r;
+                float z = (float)Math.Sin(phi) * r;
+                vertices.AddRange(new float[] { x, y, z });
             }
-            if (points.Count == 0) return; // Nothing to draw
-            
-            // Create temporary VBO/VAO for this text draw
-            int textVboTmp = GL.GenBuffer();
-            int textVaoTmp = GL.GenVertexArray();
-            GL.BindVertexArray(textVaoTmp);
-            GL.BindBuffer(BufferTarget.ArrayBuffer, textVboTmp);
-            GL.BufferData(BufferTarget.ArrayBuffer, points.Count * sizeof(float), points.ToArray(), BufferUsageHint.StreamDraw);
-            GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, 2 * sizeof(float), 0);
-            GL.EnableVertexAttribArray(0);
-            GL.UseProgram(shaderProgram); // Use the same simple shader as the sine wave
-            int colorLoc = GL.GetUniformLocation(shaderProgram, "color");
-            if (colorLoc >= 0) GL.Uniform3(colorLoc, r, g, b);
-            
-            // Use identity transform for 2D text
-            Matrix4 identityTransform = Matrix4.Identity;
-            int transformLoc = GL.GetUniformLocation(shaderProgram, "transform");
-            GL.UniformMatrix4(transformLoc, false, ref identityTransform);
-            
-            GL.PointSize(scale); // Set point size for font pixels
-            GL.DrawArrays(PrimitiveType.Points, 0, points.Count / 2);
-            
-            // Clean up temporary resources
-            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-            GL.BindVertexArray(0);
-            GL.DeleteBuffer(textVboTmp);
-            GL.DeleteVertexArray(textVaoTmp);
+        }
+
+        // Generate indices
+        for (int lat = 0; lat < latSegments; lat++)
+        {
+            for (int lon = 0; lon < lonSegments; lon++)
+            {
+                uint i0 = (uint)(lat * (lonSegments + 1) + lon);
+                uint i1 = i0 + 1;
+                uint i2 = i0 + (uint)(lonSegments + 1);
+                uint i3 = i2 + 1;
+
+                indices.AddRange(new uint[] { i0, i2, i1, i1, i2, i3 });
+            }
+        }
+
+        indexCount = indices.Count;
+
+        // Create OpenGL objects
+        vao = GL.GenVertexArray();
+        vbo = GL.GenBuffer();
+        ebo = GL.GenBuffer();
+
+        GL.BindVertexArray(vao);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
+        GL.BufferData(BufferTarget.ArrayBuffer, vertices.Count * sizeof(float), vertices.ToArray(), BufferUsageHint.StaticDraw);
+        GL.BindBuffer(BufferTarget.ElementArrayBuffer, ebo);
+        GL.BufferData(BufferTarget.ElementArrayBuffer, indices.Count * sizeof(uint), indices.ToArray(), BufferUsageHint.StaticDraw);
+        GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), 0);
+        GL.EnableVertexAttribArray(0);
+        GL.BindVertexArray(0);
+    }
+
+    private static Vector3 EciToGl(Vector3d eci)
+    {
+        // eci.X, eci.Y, eci.Z  -->  gl.Z, gl.X, gl.Y
+        return new Vector3((float)eci.Z, (float)eci.X, (float)eci.Y);
+    }
+
+    private static void SetUniformColor(int shaderProgram, float r, float g, float b, float a)
+    {
+        int colorLoc = GL.GetUniformLocation(shaderProgram, "color");
+        int alphaLoc = GL.GetUniformLocation(shaderProgram, "alpha");
+        if (colorLoc >= 0) GL.Uniform3(colorLoc, r, g, b);
+        if (alphaLoc >= 0) GL.Uniform1(alphaLoc, a);
+    }
+
+    private static void SetUniformMatrix(int shaderProgram, string name, Matrix4 matrix)
+    {
+        int location = GL.GetUniformLocation(shaderProgram, name);
+        if (location >= 0) GL.UniformMatrix4(location, false, ref matrix);
+    }
+
+    private static void CheckShaderCompilation(int shader, string type)
+    {
+        GL.GetShader(shader, ShaderParameter.CompileStatus, out int status);
+        if (status == 0)
+        {
+            string infoLog = GL.GetShaderInfoLog(shader);
+            Console.WriteLine($"{type} shader compilation failed: {infoLog}");
+        }
+    }
+
+    private static void CheckProgramLinking(int program)
+    {
+        GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int status);
+        if (status == 0)
+        {
+            string infoLog = GL.GetProgramInfoLog(program);
+            Console.WriteLine($"Shader program linking failed: {infoLog}");
+        }
+    }
+
+    private static void DrawTextInfo(Vector3 position, Vector3 velocity, double time, float mass, GuidanceMode mode)
+    {
+        // Convert to more readable units
+        float altitude = (position.Length - 6371000f) / 1000f; // Altitude in km
+        float speed = velocity.Length / 1000f; // Speed in km/s
+        
+        // For now, just print to console (you can implement overlay text rendering later)
+        if ((int)time % 5 == 0) // Print every 5 seconds
+        {
+            Console.WriteLine($"T+{time:F1}s | Alt: {altitude:F1}km | Speed: {speed:F2}km/s | Mass: {mass:F0}kg | Mode: {mode}");
         }
     }
 }

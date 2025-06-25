@@ -13,42 +13,67 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Drawing;
 using System.Drawing.Imaging;
-
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.Common;
 using OpenTK.Graphics.OpenGL;
-using OpenTK.Mathematics;
-
 using lib;
 using lib.graphics;
 
-
 class Handler
 {
+    // Shared simulation state
+    private static Simulator sharedSim;
+    private static GuidanceProgram sharedGuidance;
+    private static readonly object simLock = new object();
+    private static bool simulationRunning = true;
+    private static CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+
     static void Main()
     {
-        // Run the OpenTK visualizer synchronously on the main thread
-        Visualizer.PlotRealtimeSync(new Simulator(), new GuidanceProgram(new Dictionary<GuidanceMode, IGuidanceTarget>(), new Vehicle(), new Simulator()));
+        // Initialize simulation
+        InitializeSimulation();
+        
+        // Start simulation on background thread
+        Task simulationTask = StartSimulationAsync(cancellationTokenSource.Token);
+        
+        try
+        {
+            // Run OpenGL visualizer on main thread (required for OpenGL context)
+            Visualizer.PlotRealtimeSync(sharedSim, sharedGuidance);
+        }
+        finally
+        {
+            // Clean shutdown
+            cancellationTokenSource.Cancel();
+            simulationRunning = false;
+            
+            try
+            {
+                simulationTask.Wait(TimeSpan.FromSeconds(2));
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine("Simulation cancelled successfully.");
+            }
+        }
     }
 
-    static async Task RunAsync()
+    private static void InitializeSimulation()
     {
-        object simLock = new object();  // Lock to protect shared state
-
         string missionPath = "/home/oli/code/csharp/upfgconsole/upfgconsole/saturnV.json";
         string simPath = "/home/oli/code/csharp/upfgconsole/upfgconsole/simvars.json";
-
+        
         MissionConfig mission = Utils.ReadMission(missionPath);
         Vehicle veh = Vehicle.FromStagesJson(mission);
         Dictionary<string, float> desOrbit = mission.Orbit;
-
-        Simulator sim = new Simulator();
-        sim.LoadSimVarsFromJson(simPath);
-        sim.SetVehicle(veh);
-
+        
+        sharedSim = new Simulator();
+        sharedSim.LoadSimVarsFromJson(simPath);
+        sharedSim.SetVehicle(veh);
+        
         UPFGTarget tgt = new UPFGTarget();
-        tgt.Set(desOrbit, sim);
-
+        tgt.Set(desOrbit, sharedSim);
+        
         Dictionary<GuidanceMode, IGuidanceTarget> targets = new Dictionary<GuidanceMode, IGuidanceTarget>
         {
             { GuidanceMode.Prelaunch, tgt },
@@ -56,82 +81,157 @@ class Handler
             { GuidanceMode.OrbitInsertion, tgt },
             { GuidanceMode.FinalBurn, tgt}
         };
+        
+        sharedGuidance = new GuidanceProgram(targets, veh, sharedSim);
+    }
 
-        GuidanceProgram ascentProgram = new GuidanceProgram(targets, veh, sim);
+    private static async Task StartSimulationAsync(CancellationToken cancellationToken)
+    {
+        Vehicle veh;
+        lock (simLock)
+        {
+            veh = sharedSim.SimVehicle; // Get a reference to work with
+        }
 
-
-        double trem = 2;
         bool guidanceFailed = false;
-
+        
         // Launch guidance task
         Task guidanceTask = Task.Run(async () =>
         {
             int guidanceIter = 0;
-
-            while (true)
+            while (simulationRunning && !cancellationToken.IsCancellationRequested)
             {
                 lock (simLock)
                 {
-                    ascentProgram.UpdateVehicle(veh);
-                    ascentProgram.Step();
-
-                    sim.SetGuidance(ascentProgram.GetCurrentSteering(), veh.Stages[0]);
-                    if (ascentProgram.ActiveMode is GuidanceMode.Idle)
+                    if (sharedGuidance.ActiveMode is GuidanceMode.Idle)
                     {
                         Console.WriteLine("Guidance program completed successfully.");
-                        break; // Exit the loop if guidance is complete
+                        break;
                     }
+                    
+                    sharedGuidance.UpdateVehicle(veh);
+                    sharedGuidance.Step();
+                    sharedSim.SetGuidance(sharedGuidance.GetCurrentSteering(), veh.Stages[0]);
                 }
-
-                await Task.Delay((int)(0.1 * 1000f / sim.simspeed)); // guidance runs slower
+                
+                await Task.Delay((int)(0.1 * 1000f / sharedSim.simspeed), cancellationToken);
                 guidanceIter++;
             }
-        });
+        }, cancellationToken);
 
         // Physics loop (fast)
-        while (true)
+        try
+        {
+            while (simulationRunning && !cancellationToken.IsCancellationRequested)
+            {
+                lock (simLock)
+                {
+                    if (sharedGuidance.ActiveMode is GuidanceMode.Idle)
+                    {
+                        break; // Exit the loop if guidance is complete
+                    }
+                    
+                    sharedSim.StepForward();
+                    
+                    if (sharedSim.State.mass < sharedSim.SimVehicle.CurrentStage.MassDry) //staging logic
+                    {
+                        if (veh.Stages.Count > 1)
+                        {
+                            veh.AdvanceStage();
+                            sharedSim.SetVehicle(veh);
+                        }
+                        else
+                        {
+                            Console.WriteLine("SIMULATION STOPPED - FUEL DEPLETED");
+                            break;
+                        }
+                    }
+                }
+                
+                await Task.Delay((int)(sharedSim.dt * 1000f / sharedSim.simspeed), cancellationToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            Console.WriteLine("Physics simulation cancelled.");
+        }
+
+        try
+        {
+            await guidanceTask;
+        }
+        catch (OperationCanceledException)
+        {
+            Console.WriteLine("Guidance task cancelled.");
+        }
+
+        if (!guidanceFailed && !cancellationToken.IsCancellationRequested)
         {
             lock (simLock)
             {
-
-                if (ascentProgram.ActiveMode is GuidanceMode.Idle)
-                {
-                    break; // Exit the loop if guidance is complete
-                }
-
-                sim.StepForward();
-
-                if (sim.State.mass < sim.SimVehicle.CurrentStage.MassDry) //staging logic
-                {
-                    if (veh.Stages.Count > 1)
-                    {
-                        veh.AdvanceStage();
-                        sim.SetVehicle(veh);
-
-                    }
-                    else
-                    {
-                        Console.WriteLine("SIMULATION STOPPED - FUEL DEPLETED");
-
-                        break;
-                    }
-                }
+                Utils.PlotTrajectory(sharedSim);
+                var kepler = sharedSim.State.Kepler;
+                Console.WriteLine(kepler["e"]);
+                Utils.PlotOrbit(kepler);
             }
-
-            await Task.Delay((int)(sim.dt * 1000f / sim.simspeed));
-
         }
+        
+        simulationRunning = false;
+    }
 
-        await guidanceTask;
-
-        if (!guidanceFailed)
+    // Static methods to safely access simulation data from OpenGL thread
+    public static (Vector3 position, Vector3 velocity, double time, float mass) GetCurrentState()
+    {
+        lock (simLock)
         {
-            Utils.PlotTrajectory(sim);
-            var kepler = sim.State.Kepler;
-            Console.WriteLine(kepler["e"]);
-            Utils.PlotOrbit(kepler);
+            if (sharedSim?.State != null)
+            {
+                return (
+                    new Vector3(sharedSim.State.r.Y, sharedSim.State.r.Z, sharedSim.State.r.X),
+                    new Vector3(sharedSim.State.v.Y, sharedSim.State.v.Z, sharedSim.State.v.X),
+                    sharedSim.State.t,
+                    sharedSim.State.mass
+                );
+            }
+            return (Vector3.Zero, Vector3.Zero, 0, 0);
         }
     }
+
+    public static List<Vector3> GetTrajectoryHistory()
+    {
+        lock (simLock)
+        {
+            if (sharedSim?.History != null)
+            {
+                var trajectory = new List<Vector3>();
+                foreach (var state in sharedSim.History)
+                {
+                    trajectory.Add(new Vector3(state.r.Y, state.r.Z, state.r.X));
+                }
+                return trajectory;
+            }
+            return new List<Vector3>();
+        }
+    }
+
+    public static (Vector3 steering, GuidanceMode mode) GetGuidanceInfo()
+    {
+        lock (simLock)
+        {
+            if (sharedGuidance != null)
+            {
+                var steering = sharedGuidance.GetCurrentSteering();
+                return (
+                    new Vector3(steering.Y, steering.Z, steering.X),
+                    sharedGuidance.ActiveMode
+                );
+            }
+            return (Vector3.Zero, GuidanceMode.Idle);
+        }
+    }
+
+    public static bool IsSimulationRunning()
+    {
+        return simulationRunning;
+    }
 }
-
-
