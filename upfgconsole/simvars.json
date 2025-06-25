@@ -1,8 +1,8 @@
 {
   "Simulator": {
-    "speed": 50,
+    "speed": 100,
     "dtsim": 0.5,
-    "dtguidance": 2,
+    "dtguidance": 1,
     "startLat" : 0,
     "startLong" : 0,
     "startGround" : 1,

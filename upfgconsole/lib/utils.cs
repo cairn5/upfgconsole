@@ -262,7 +262,7 @@ public static class Utils
         return degrees;
     }
 
-    public static void PlotOrbit(Dictionary<string, double> elements)
+    public static float[] PlotOrbit(Dictionary<string, double> elements)
     {
         // double DegToRad(double degrees) => degrees * Math.PI / 180.0;
 
@@ -325,6 +325,8 @@ public static class Utils
         double[] yp = new double[numPoints];
         double[] zp = new double[numPoints];
 
+        float[] trajData = new float[numPoints * 3];
+
         for (int idx = 0; idx < numPoints; idx++)
         {
             double x = x_p[idx];
@@ -334,6 +336,10 @@ public static class Utils
             xp[idx] = orbit[0][idx] = R[0, 0] * x + R[0, 1] * y + R[0, 2] * z;
             yp[idx] = R[1, 0] * x + R[1, 1] * y + R[1, 2] * z;
             zp[idx] = R[2, 0] * x + R[2, 1] * y + R[2, 2] * z;
+            trajData[idx * 3] = (float)yp[idx];
+            trajData[idx * 3 + 1] = (float)zp[idx];
+            trajData[idx * 3 + 2] = (float)xp[idx];
+
         }
 
         // Visualization: Placeholder - let me know if you want this as a WPF 3D or Unity project!
@@ -342,6 +348,8 @@ public static class Utils
         XYplot.Add.Scatter(xp, zp);
         XYplot.SavePng("kepler.png", 400, 300);
 
+        return trajData;
+       
     }
 
     private static double[] Linspace(double start, double end, int num)

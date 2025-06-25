@@ -56,6 +56,9 @@ public class Visualizer
         // Steering vector
         int steeringVao = 0, steeringVbo = 0;
 
+        // Steering vector
+        int keplerVao = 0, keplerVbo = 0;
+
         // --- OpenGL initialization ---
         window.Load += () =>
         {
@@ -110,7 +113,7 @@ public class Visualizer
             CreateSphere(out earthVao, out earthVbo, out earthEbo, out earthIndexCount, 6371000f, 32, 72); // Earth radius in meters
 
             // --- Create small vehicle sphere ---
-            CreateSphere(out vehicleVao, out vehicleVbo, out vehicleEbo, out vehicleIndexCount, 500f, 8, 6); // Small vehicle representation
+            CreateSphere(out vehicleVao, out vehicleVbo, out vehicleEbo, out vehicleIndexCount, 40000f, 8, 6); // Small vehicle representation
 
             // --- Create trajectory VAO ---
             trajVao = GL.GenVertexArray();
@@ -131,6 +134,18 @@ public class Visualizer
             GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), 0);
             GL.EnableVertexAttribArray(0);
             GL.BindVertexArray(0);
+
+            // --- Create kepler orbit VAO ---
+            int numpoints = 400;
+            keplerVao = GL.GenVertexArray();
+            keplerVbo = GL.GenBuffer();
+            GL.BindVertexArray(keplerVao);
+            GL.BindBuffer(BufferTarget.ArrayBuffer, keplerVbo);
+            GL.BufferData(BufferTarget.ArrayBuffer, numpoints * sizeof(float), new float[numpoints], BufferUsageHint.DynamicDraw); // Two points (line)
+            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), 0);
+            GL.EnableVertexAttribArray(0);
+            GL.BindVertexArray(0);
+
 
             // --- Text shader setup ---
             {
@@ -212,7 +227,7 @@ public class Visualizer
             if ((OpenTK.Mathematics.Vector3)position != Vector3.Zero)
             {
                 GL.BindVertexArray(vehicleVao);
-                SetUniformColor(shaderProgram, 1.0f, 0.5f, 0.0f, 1.0f); // Orange vehicle
+                SetUniformColor(shaderProgram, 1.0f, 1.0f, 1.0f, 1.0f); // white vehicle
                 Matrix4 vehicleTransform = Matrix4.CreateTranslation((OpenTK.Mathematics.Vector3)position) * view * projection;
                 SetUniformMatrix(shaderProgram, "transform", vehicleTransform);
                 GL.DrawElements(PrimitiveType.Triangles, vehicleIndexCount, DrawElementsType.UnsignedInt, 0);
@@ -234,27 +249,43 @@ public class Visualizer
                 GL.BufferData(BufferTarget.ArrayBuffer, trajData.Length * sizeof(float), trajData, BufferUsageHint.DynamicDraw);
 
                 GL.BindVertexArray(trajVao);
-                SetUniformColor(shaderProgram, 1.0f, 1.0f, 0.0f, 0.8f); // Yellow trail
+                SetUniformColor(shaderProgram, 0.0f, 1.0f, 0.0f, 0.8f); // green trail
                 Matrix4 trajTransform = view * projection;
                 SetUniformMatrix(shaderProgram, "transform", trajTransform);
                 GL.LineWidth(2.0f);
                 GL.DrawArrays(PrimitiveType.LineStrip, 0, trajectoryHistory.Count);
             }
+            // Draw kepler orbit
+            if (trajectoryHistory.Count > 1)
+            {
+                float[] keplerData = Utils.PlotOrbit(sim.State.Kepler);
 
+                GL.BindBuffer(BufferTarget.ArrayBuffer, keplerVbo);
+                GL.BufferData(BufferTarget.ArrayBuffer, keplerData.Length * sizeof(float), keplerData, BufferUsageHint.DynamicDraw);
+
+                GL.BindVertexArray(keplerVao);
+                SetUniformColor(shaderProgram, 0.0f, 1.0f, 0.0f, 0.8f); // green trail
+                Matrix4 keplerTransform = view * projection;
+                SetUniformMatrix(shaderProgram, "transform", keplerTransform);
+                GL.LineWidth(2.0f);
+                GL.DrawArrays(PrimitiveType.LineStrip, 0, keplerData.Length / 3);
+            }
+
+            
             // --- Draw steering vector ---
             if ((OpenTK.Mathematics.Vector3)steering != Vector3.Zero && (OpenTK.Mathematics.Vector3)position != Vector3.Zero)
             {
                 Vector3 steeringEnd = (OpenTK.Mathematics.Vector3)position + Vector3.Normalize((OpenTK.Mathematics.Vector3)steering) * 2000000f; // 2000 km long
                 float[] steeringData = {
-                    position.X, position.Y, position.Z,
-                    steeringEnd.X, steeringEnd.Y, steeringEnd.Z
-                };
+                position.X, position.Y, position.Z,
+                steeringEnd.X, steeringEnd.Y, steeringEnd.Z
+            };
 
                 GL.BindBuffer(BufferTarget.ArrayBuffer, steeringVbo);
                 GL.BufferData(BufferTarget.ArrayBuffer, steeringData.Length * sizeof(float), steeringData, BufferUsageHint.DynamicDraw);
 
                 GL.BindVertexArray(steeringVao);
-                SetUniformColor(shaderProgram, 0.0f, 1.0f, 0.0f, 1.0f); // Green steering vector
+                SetUniformColor(shaderProgram, 1.0f, 0.0f, 0.0f, 1.0f); // red steering vector
                 Matrix4 steeringTransform = view * projection;
                 SetUniformMatrix(shaderProgram, "transform", steeringTransform);
                 GL.LineWidth(3.0f);

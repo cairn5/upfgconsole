@@ -130,7 +130,7 @@ public class Simulator
         State.r = Iteration["r"];
         State.v = Iteration["v"];
         State.t = State.t + dt;
-        State.mass = State.mass - dt * (float)(SimVehicle.CurrentStage.Thrust / (Constants.g0 * SimVehicle.CurrentStage.Isp));
+        State.mass = State.mass - (float)(dt * ThrustVector.Length() / (Constants.g0 * SimVehicle.CurrentStage.Isp));
 
         State.CartToKepler();
         State.CalcMiscParams();

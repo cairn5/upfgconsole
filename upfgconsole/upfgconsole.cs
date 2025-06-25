@@ -103,17 +103,10 @@ class Handler
             {
                 lock (simLock)
                 {
-                    if (sharedGuidance.ActiveMode is GuidanceMode.Idle)
-                    {
-                        Console.WriteLine("Guidance program completed successfully.");
-                        break;
-                    }
-                    
                     sharedGuidance.UpdateVehicle(veh);
                     sharedGuidance.Step();
                     sharedSim.SetGuidance(sharedGuidance.GetCurrentSteering(), veh.Stages[0]);
                 }
-                
                 await Task.Delay((int)(sharedSim.dtguidance * 1000f / sharedSim.simspeed), cancellationToken);
                 guidanceIter++;
             }
@@ -126,13 +119,7 @@ class Handler
             {
                 lock (simLock)
                 {
-                    if (sharedGuidance.ActiveMode is GuidanceMode.Idle)
-                    {
-                        break; // Exit the loop if guidance is complete
-                    }
-                    
                     sharedSim.StepForward();
-                    
                     if (sharedSim.State.mass < sharedSim.SimVehicle.CurrentStage.MassDry) //staging logic
                     {
                         if (veh.Stages.Count > 1)
@@ -147,7 +134,6 @@ class Handler
                         }
                     }
                 }
-                
                 await Task.Delay((int)(sharedSim.dt * 1000f / sharedSim.simspeed), cancellationToken);
             }
         }
