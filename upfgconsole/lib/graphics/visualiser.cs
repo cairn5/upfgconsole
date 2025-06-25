@@ -63,10 +63,12 @@ public class Visualizer
         {
             // Print OpenGL version for debugging
             Console.WriteLine($"OpenGL Version: {GL.GetString(StringName.Version)}");
+            GL.Enable(EnableCap.DepthTest);
+            GL.DepthFunc(DepthFunction.Less);
 
             // --- Shader setup (modern OpenGL, core profile) ---
             // Vertex shader: accepts 3D position, applies transform matrix
-            string vertexShaderSource = "#version 330 core\nlayout(location = 0) in vec3 aPosition;\nuniform mat4 transform;\nvoid main(){gl_Position = transform * vec4(aPosition, 1.0);}";
+            string vertexShaderSource = "#version 330 core\nlayout(location = 0) in vec3 aPosition;\nuniform mat4 transform;\nvoid main(){gl_Position = transform * vec4(aPosition, 1.0) ;}";
             // Fragment shader: outputs solid color from uniform
             string fragmentShaderSource = "#version 330 core\nout vec4 FragColor;\nuniform vec3 color;\nvoid main(){FragColor = vec4(color, 1.0);}";
             // Compile vertex shader
@@ -204,20 +206,22 @@ public class Visualizer
         window.RenderFrame += (FrameEventArgs args) =>
         {
 
-            // set matrices
             float aspectRatio = window.Size.X / (float)window.Size.Y;
-            float orthoHeight = 1.0f;
-            float orthoWidth = orthoHeight * aspectRatio;
-
-            Matrix4 projection = Matrix4.CreateOrthographic(
-                orthoWidth * 2,  // left to right range
-                orthoHeight * 2, // bottom to top range
-                -1f,            // near plane
-                1f              // far plane
+            Matrix4 projection = Matrix4.CreatePerspectiveFieldOfView(
+                MathHelper.DegreesToRadians(80f), 
+                aspectRatio, 
+                0.1f, 
+                200.0f
             );
 
-            Matrix4 view = Matrix4.CreateTranslation(0.0f, -0.2f, 0f); // "Camera" back 3 units
-    
+            // Position camera looking at origin from positive Z
+            // Matrix4 view = Matrix4.LookAt(
+            //     new Vector3(0f, 0f, 0f),  // Camera position
+            //     new Vector3(0f, 0f, 0f),             // Look at origin
+            //     Vector3.UnitY            // Up vector
+            // );
+
+
 
             // --- Animate sine wave ---
             phase += speed * args.Time; // Advance phase for animation
@@ -234,7 +238,7 @@ public class Visualizer
             GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, vertices.Length * sizeof(float), vertices);
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
             // Clear the screen
-            GL.Clear(ClearBufferMask.ColorBufferBit);
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             // Use main shader program
             GL.UseProgram(shaderProgram);
             // Set transform to identity for 2D sine wave and text
@@ -243,10 +247,10 @@ public class Visualizer
             GL.UniformMatrix4(transformLoc, false, ref identity);
 
 
-            // Draw sine wave as a line strip
-            GL.BindVertexArray(vao);
-            GL.LineWidth(2.0f);
-            GL.DrawElements(PrimitiveType.LineStrip, numPoints, DrawElementsType.UnsignedInt, 0);
+            // // Draw sine wave as a line strip
+            // GL.BindVertexArray(vao);
+            // GL.LineWidth(2.0f);
+            // GL.DrawElements(PrimitiveType.LineStrip, numPoints, DrawElementsType.UnsignedInt, 0);
            
            
             // --- Draw simulation time and text using bitmap font ---
@@ -264,11 +268,21 @@ public class Visualizer
             if (colorLoc >= 0) GL.Uniform3(colorLoc, 0.2f, 0.6f, 1.0f); // Blue color for sphere
             double time = phase / speed;
             // Compose transform: rotate Y (animation), rotate X (tilt), translate X (wobble)
-            var model = Matrix4.CreateScale(2,2,2) * Matrix4.CreateRotationX(MathHelper.DegreesToRadians(20f));
-            var transform = projection * view * model;
 
+            Matrix4 view = Matrix4.CreateTranslation(new Vector3(0f, 0f, -1f));
+
+            // Matrix4 projection = Matrix4.Identity;
+            // Matrix4 view = Matrix4.Identity;
+            var model = Matrix4.CreateRotationY(0.1f*(float)(time)) * Matrix4.CreateScale(1f, 1f, 1f);
+            var transform = model * view * projection;
+
+            // Set transform to identity for 2D sine wave and text
+            transformLoc = GL.GetUniformLocation(shaderProgram, "transform");
             GL.UniformMatrix4(transformLoc, false, ref transform);
             // Draw sphere as wireframe (PolygonMode.Line)
+
+            Console.WriteLine($"Sphere index count: {sphereIndexCount}");
+            Console.WriteLine($"Transform matrix: {transform}");
             GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Line);
             GL.DrawElements(PrimitiveType.Triangles, sphereIndexCount, DrawElementsType.UnsignedInt, 0);
             GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Fill); // Restore fill mode
