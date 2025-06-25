@@ -41,6 +41,7 @@ public class Visualizer
 
         // --- OpenGL state variables ---
         int shaderProgram = 0;
+        int textShaderProgram = 0;
 
         // Vehicle representation (small sphere)
         int vehicleVao = 0, vehicleVbo = 0, vehicleEbo = 0, vehicleIndexCount = 0;
@@ -130,6 +131,40 @@ public class Visualizer
             GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), 0);
             GL.EnableVertexAttribArray(0);
             GL.BindVertexArray(0);
+
+            // --- Text shader setup ---
+            {
+                string textVertexShaderSource = @"
+                    #version 330 core
+                    layout(location = 0) in vec2 aPosition;
+                    void main() {
+                        gl_Position = vec4(aPosition, 0.0, 1.0);
+                    }
+                ";
+                string textFragmentShaderSource = @"
+                    #version 330 core
+                    out vec4 FragColor;
+                    uniform vec3 color;
+                    void main() {
+                        FragColor = vec4(color, 1.0);
+                    }
+                ";
+                int v = GL.CreateShader(ShaderType.VertexShader);
+                GL.ShaderSource(v, textVertexShaderSource);
+                GL.CompileShader(v);
+                CheckShaderCompilation(v, "text vertex");
+                int f = GL.CreateShader(ShaderType.FragmentShader);
+                GL.ShaderSource(f, textFragmentShaderSource);
+                GL.CompileShader(f);
+                CheckShaderCompilation(f, "text fragment");
+                textShaderProgram = GL.CreateProgram();
+                GL.AttachShader(textShaderProgram, v);
+                GL.AttachShader(textShaderProgram, f);
+                GL.LinkProgram(textShaderProgram);
+                CheckProgramLinking(textShaderProgram);
+                GL.DeleteShader(v);
+                GL.DeleteShader(f);
+            }
         };
 
         // --- Main render loop ---
@@ -227,7 +262,10 @@ public class Visualizer
             }
 
             // --- Draw text information ---
-            DrawTextInfo((OpenTK.Mathematics.Vector3)position, (OpenTK.Mathematics.Vector3)velocity, time, mass, guidanceMode);
+            string info = DrawTextInfo((OpenTK.Mathematics.Vector3)position, (OpenTK.Mathematics.Vector3)velocity, time, mass, guidanceMode);
+            TextRenderer.DrawText(info, -0.98f, 0.92f, 1f, 1f, 1f, 1f, textShaderProgram);
+            GL.BindVertexArray(0);
+            GL.UseProgram(shaderProgram);
 
             window.SwapBuffers();
         };
@@ -255,6 +293,7 @@ public class Visualizer
             GL.DeleteVertexArray(steeringVao);
             GL.DeleteBuffer(steeringVbo);
             GL.DeleteProgram(shaderProgram);
+            GL.DeleteProgram(textShaderProgram);
         };
 
         window.Run();
@@ -353,21 +392,17 @@ public class Visualizer
         }
     }
 
-    private static void DrawTextInfo(Vector3 position, Vector3 velocity, double time, float mass, GuidanceMode mode)
+    private static string DrawTextInfo(Vector3 position, Vector3 velocity, double time, float mass, GuidanceMode mode)
     {
         // Convert to more readable units
         float altitude = (position.Length - 6371000f) / 1000f; // Altitude in km
         float speed = velocity.Length / 1000f; // Speed in km/s
 
-        // For now, just print to console (you can implement overlay text rendering later)
-        if ((int)time % 5 == 0) // Print every 5 seconds
-        {
-            Console.WriteLine($"T+{time:F1}s | Alt: {altitude:F1}km | Speed: {speed:F2}km/s | Mass: {mass:F0}kg | Mode: {mode}");
-        }
+        return $"T+{time:F1}s | Alt: {altitude:F1}km | Speed: {speed:F2}km/s | Mass: {mass:F0}kg | Mode: {mode}";
     }
             // Helper: draw text at (x, y) in NDC [-1,1], with scale (pixel size in NDC)
         // Modern OpenGL version: builds a VBO of points and draws with a shader
-    void DrawText(string text, float x, float y, float scale, float r, float g, float b)
+    private static void DrawText(string text, float x, float y, float scale, float r, float g, float b)
     {
         List<float> points = new();
         float cursorX = x;
