@@ -1,8 +1,9 @@
 {
   "Simulator": {
-    "speed": 10,
-    "dt": 0.01,
-    "startLat" : 28.5,
+    "speed": 50,
+    "dtsim": 0.5,
+    "dtguidance": 2,
+    "startLat" : 0,
     "startLong" : 0,
     "startGround" : 1,
     "airVel" : 2400,

@@ -114,7 +114,7 @@ class Handler
                     sharedSim.SetGuidance(sharedGuidance.GetCurrentSteering(), veh.Stages[0]);
                 }
                 
-                await Task.Delay((int)(0.1 * 1000f / sharedSim.simspeed), cancellationToken);
+                await Task.Delay((int)(sharedSim.dtguidance * 1000f / sharedSim.simspeed), cancellationToken);
                 guidanceIter++;
             }
         }, cancellationToken);

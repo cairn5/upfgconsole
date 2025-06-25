@@ -20,6 +20,7 @@ public class Simulator
     public SimState State { get; private set; }
     public Dictionary<string, Vector3> Iteration { get; private set; }
     public float dt { get; private set; }
+    public float dtguidance { get; set; }
     public double simspeed { get; private set; }
     public Vector3 ThrustVector { get; private set; }
     public List<SimState> History { get; set; }
@@ -156,7 +157,8 @@ public class Simulator
         double startGround = root.GetProperty("startGround").GetDouble();
         double airVel = root.GetProperty("airVel").GetDouble();
         double airFpa = root.GetProperty("airFpa").GetDouble();
-        float dtlocal = root.GetProperty("dt").GetSingle();
+        float dtlocal = root.GetProperty("dtsim").GetSingle();
+        float dtguidancelocal = root.GetProperty("dtguidance").GetSingle();
         double simspeedlocal = root.GetProperty("speed").GetDouble();
         double altitude = root.GetProperty("altitude").GetSingle();
 
@@ -193,6 +195,7 @@ public class Simulator
             SetVesselStateFromLatLongGround(initial);
         }
         SetTimeStep(dtlocal);
+        this.dtguidance = dtguidancelocal; //this should be in vehicle/ guidance really
         this.simspeed = simspeedlocal;
     }
 

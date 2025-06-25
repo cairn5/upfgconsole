@@ -36,22 +36,22 @@ public class Visualizer
         {
             UpdateFrequency = 60.0,  // 60 FPS for smooth visualization
         };
-        
+
         using var window = new GameWindow(gameWindowSettings, nativeWindowSettings);
 
         // --- OpenGL state variables ---
         int shaderProgram = 0;
-        
+
         // Vehicle representation (small sphere)
         int vehicleVao = 0, vehicleVbo = 0, vehicleEbo = 0, vehicleIndexCount = 0;
-        
+
         // Trajectory trail
         int trajVao = 0, trajVbo = 0;
         List<Vector3> trajectoryPoints = new List<Vector3>();
-        
+
         // Earth sphere
         int earthVao = 0, earthVbo = 0, earthEbo = 0, earthIndexCount = 0;
-        
+
         // Steering vector
         int steeringVao = 0, steeringVbo = 0;
 
@@ -74,7 +74,7 @@ public class Visualizer
                 {
                     gl_Position = transform * vec4(aPosition, 1.0);
                 }";
-            
+
             string fragmentShaderSource = @"
                 #version 330 core
                 out vec4 FragColor;
@@ -107,10 +107,10 @@ public class Visualizer
 
             // --- Create Earth sphere ---
             CreateSphere(out earthVao, out earthVbo, out earthEbo, out earthIndexCount, 6371000f, 32, 72); // Earth radius in meters
-            
+
             // --- Create small vehicle sphere ---
             CreateSphere(out vehicleVao, out vehicleVbo, out vehicleEbo, out vehicleIndexCount, 500f, 8, 6); // Small vehicle representation
-            
+
             // --- Create trajectory VAO ---
             trajVao = GL.GenVertexArray();
             trajVbo = GL.GenBuffer();
@@ -120,7 +120,7 @@ public class Visualizer
             GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), 0);
             GL.EnableVertexAttribArray(0);
             GL.BindVertexArray(0);
-            
+
             // --- Create steering vector VAO ---
             steeringVao = GL.GenVertexArray();
             steeringVbo = GL.GenBuffer();
@@ -136,12 +136,12 @@ public class Visualizer
         window.RenderFrame += (FrameEventArgs args) =>
         {
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-            
+
             // Get current simulation state
             var (position, velocity, time, mass) = Handler.GetCurrentState();
             var trajectoryHistory = Handler.GetTrajectoryHistory();
             var (steering, guidanceMode) = Handler.GetGuidanceInfo();
-            
+
             // // Exit if simulation is done
             // if (!Handler.IsSimulationRunning())
             // {
@@ -152,19 +152,21 @@ public class Visualizer
             // --- Camera setup ---
             float aspectRatio = window.Size.X / (float)window.Size.Y;
             Matrix4 projection = Matrix4.CreatePerspectiveFieldOfView(
-                MathHelper.DegreesToRadians(45f), aspectRatio, 1000f, 50000000f);
+                MathHelper.DegreesToRadians(45f), aspectRatio, 100f, 50000000f);
 
             // Camera follows the vehicle at a distance
-            // Vector3 cameraOffset = new Vector3(0, 0, 150000f); // 15,000 km behind
-            // Vector3 cameraPos = (OpenTK.Mathematics.Vector3)position + cameraOffset;
-            // Matrix4 view = Matrix4.LookAt(cameraPos, (OpenTK.Mathematics.Vector3)position, Vector3.UnitY);
+            Vector3 cameraOffset = new Vector3(0, 0, 300000f);
+            Vector3 cameraPos = (OpenTK.Mathematics.Vector3)position * 3;
+            Matrix4 view = Matrix4.LookAt(cameraPos, (OpenTK.Mathematics.Vector3)position, Vector3.UnitY);
 
-            Matrix4 view =  Matrix4.CreateTranslation(new Vector3(0, 0, -30000000));
+            // Matrix4 view =  Matrix4.CreateTranslation(new Vector3(0, 0, -30000000));
+
+
             GL.UseProgram(shaderProgram);
 
             // --- Draw Earth ---
             GL.BindVertexArray(earthVao);
-            SetUniformColor(shaderProgram, 0.3f, 0.7f, 1.0f, 1.0f); // Blue Earth
+            SetUniformColor(shaderProgram, 0.5f, 0.5f, 0.5f, 0.5f); // Blue Earth
             Matrix4 earthTransform = Matrix4.CreateTranslation(Vector3.Zero) * view * projection;
             SetUniformMatrix(shaderProgram, "transform", earthTransform);
             GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Line);
@@ -195,7 +197,7 @@ public class Visualizer
 
                 GL.BindBuffer(BufferTarget.ArrayBuffer, trajVbo);
                 GL.BufferData(BufferTarget.ArrayBuffer, trajData.Length * sizeof(float), trajData, BufferUsageHint.DynamicDraw);
-                
+
                 GL.BindVertexArray(trajVao);
                 SetUniformColor(shaderProgram, 1.0f, 1.0f, 0.0f, 0.8f); // Yellow trail
                 Matrix4 trajTransform = view * projection;
@@ -215,7 +217,7 @@ public class Visualizer
 
                 GL.BindBuffer(BufferTarget.ArrayBuffer, steeringVbo);
                 GL.BufferData(BufferTarget.ArrayBuffer, steeringData.Length * sizeof(float), steeringData, BufferUsageHint.DynamicDraw);
-                
+
                 GL.BindVertexArray(steeringVao);
                 SetUniformColor(shaderProgram, 0.0f, 1.0f, 0.0f, 1.0f); // Green steering vector
                 Matrix4 steeringTransform = view * projection;
@@ -356,11 +358,42 @@ public class Visualizer
         // Convert to more readable units
         float altitude = (position.Length - 6371000f) / 1000f; // Altitude in km
         float speed = velocity.Length / 1000f; // Speed in km/s
-        
+
         // For now, just print to console (you can implement overlay text rendering later)
         if ((int)time % 5 == 0) // Print every 5 seconds
         {
             Console.WriteLine($"T+{time:F1}s | Alt: {altitude:F1}km | Speed: {speed:F2}km/s | Mass: {mass:F0}kg | Mode: {mode}");
+        }
+    }
+            // Helper: draw text at (x, y) in NDC [-1,1], with scale (pixel size in NDC)
+        // Modern OpenGL version: builds a VBO of points and draws with a shader
+    void DrawText(string text, float x, float y, float scale, float r, float g, float b)
+    {
+        List<float> points = new();
+        float cursorX = x;
+        foreach (char c in text)
+        {
+            if (!BitmapFont8x8.Font.TryGetValue(c, out var glyph))
+            {
+                cursorX += 9 * scale * 2f / 1200f;
+                continue;
+            }
+            for (int row = 0; row < 8; row++)
+            {
+                byte rowData = glyph[row];
+                for (int col = 0; col < 8; col++)
+                {
+                    // Fix: flip col index so bits are drawn left-to-right
+                    if (((rowData >> col) & 1) != 0)
+                    {
+                        float px = cursorX + col * scale * 2f / 1200f;
+                        float py = y - row * scale * 2f / 800f;
+                        points.Add(px);
+                        points.Add(py);
+                    }
+                }
+            }
+            cursorX += 9 * scale * 2f / 1200f;
         }
     }
 }
