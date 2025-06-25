@@ -60,8 +60,8 @@ class Handler
 
     private static void InitializeSimulation()
     {
-        string missionPath = "/home/oli/code/csharp/upfgconsole/upfgconsole/saturnV.json";
-        string simPath = "/home/oli/code/csharp/upfgconsole/upfgconsole/simvars.json";
+        string missionPath = "missions/saturnV.json";
+        string simPath = "missions/simvars.json";
         
         MissionConfig mission = Utils.ReadMission(missionPath);
         Vehicle veh = Vehicle.FromStagesJson(mission);

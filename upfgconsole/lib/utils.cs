@@ -431,33 +431,33 @@ public static class Utils
 
         // transposedTable.Write(Format.Alternative);
 
-        Console.SetCursorPosition(40, 5);
-        Console.WriteLine("-----------");
-        Console.SetCursorPosition(40, 6);
-        Console.WriteLine("UPFG STATUS:");
+        // Console.SetCursorPosition(40, 5);
+        // Console.WriteLine("-----------");
+        // Console.SetCursorPosition(40, 6);
+        // Console.WriteLine("UPFG STATUS:");
 
-        Console.SetCursorPosition(40, 8);
-        if (false)
-        {
-            Console.WriteLine("CONVERGED");
-        }
-        else
-        {
-            Console.WriteLine("UPFG CONVERGING");
-        }
-        Console.SetCursorPosition(40, 9);
-        Console.WriteLine("-----------");
+        // Console.SetCursorPosition(40, 8);
+        // if (false)
+        // {
+        //     Console.WriteLine("CONVERGED");
+        // }
+        // else
+        // {
+        //     Console.WriteLine("UPFG CONVERGING");
+        // }
+        // Console.SetCursorPosition(40, 9);
+        // Console.WriteLine("-----------");
 
-        Console.SetCursorPosition(40, 11);
-        Console.WriteLine("VEHICLE STATUS:");
+        // Console.SetCursorPosition(40, 11);
+        // Console.WriteLine("VEHICLE STATUS:");
 
-        Console.SetCursorPosition(40, 13);
-        Console.WriteLine("VEL:    " + sim.State.v.Length().ToString("F1"));
-        Console.SetCursorPosition(40, 14);
-        Console.WriteLine("MASS:   " + sim.State.mass.ToString("F1"));
+        // Console.SetCursorPosition(40, 13);
+        // Console.WriteLine("VEL:    " + sim.State.v.Length().ToString("F1"));
+        // Console.SetCursorPosition(40, 14);
+        // Console.WriteLine("MASS:   " + sim.State.mass.ToString("F1"));
 
-        Console.SetCursorPosition(40, 15);
-        Console.WriteLine("STAGES: " + veh.Stages.Count().ToString());
+        // Console.SetCursorPosition(40, 15);
+        // Console.WriteLine("STAGES: " + veh.Stages.Count().ToString());
 
         return transposedTable.ToString();
 

@@ -36,7 +36,7 @@ public class Visualizer
 
         var gameWindowSettings = new GameWindowSettings()
         {
-            UpdateFrequency = 10.0,  // 60 FPS for smooth visualization
+            UpdateFrequency = 120.0,  // 60 FPS for smooth visualization
         };
 
         using var window = new GameWindow(gameWindowSettings, nativeWindowSettings);

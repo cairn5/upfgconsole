@@ -1,0 +1,13 @@
+{
+  "Simulator": {
+    "speed": 50,
+    "dtsim": 0.1,
+    "dtguidance": 0.3,
+    "startLat" : 28.5,
+    "startLong" : 0,
+    "startGround" : 1,
+    "airVel" : 2400,
+    "airFpa" : 45,
+    "altitude" : 45
+  }
+}
