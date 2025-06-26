@@ -54,9 +54,6 @@ public class UpfgMode : IGuidanceMode
                 StagingFlag = false;
             }
             upfg.step(sim, veh, upfgTarget);
-            Console.Clear();
-            Utils.PrintUPFG(upfg, sim);
-            // Utils.PrintVars(sim, (UPFGTarget)tgt, veh);
             
             if (upfg.PrevVals.tgo < 5) return GuidanceMode.FinalBurn;
             else return null;
@@ -81,10 +78,6 @@ public class FinalMode : IGuidanceMode
     {
         _PrevGuidance = sim.ThrustVector;
 
-        if (tgt is UPFGTarget upfgTarget)
-        {
-            Utils.PrintVars(sim, upfgTarget, veh);
-        }
         
         if (InitialTime == -1)
         {
@@ -107,7 +100,6 @@ public class IdleMode : IGuidanceMode
     public bool StagingFlag { get; set; } = false;
     public GuidanceMode? Step(Simulator sim, IGuidanceTarget tgt, Vehicle veh)
     {
-        Console.WriteLine("Guidance program completed.");
         return null;
     }
     public Vector3? GetSteering() => Vector3.Zero; // No steering in idle mode

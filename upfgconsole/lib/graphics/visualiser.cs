@@ -36,7 +36,7 @@ public class Visualizer
 
         var gameWindowSettings = new GameWindowSettings()
         {
-            UpdateFrequency = 120.0,  // 60 FPS for smooth visualization
+            UpdateFrequency = 12.0,  // 60 FPS for smooth visualization
         };
 
         using var window = new GameWindow(gameWindowSettings, nativeWindowSettings);
@@ -327,7 +327,7 @@ public class Visualizer
                         y -= lineSpacing;
                     }
                 }
-                Console.WriteLine(simvars);
+                
                 GL.BindVertexArray(0);
                 GL.UseProgram(shaderProgram);
                 
@@ -351,7 +351,7 @@ public class Visualizer
                         y -= lineSpacing;
                     }
                 }
-                Console.WriteLine(simvars);
+                // Console.WriteLine(simvars);
                 GL.BindVertexArray(0);
                 GL.UseProgram(shaderProgram);
 

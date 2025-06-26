@@ -389,7 +389,7 @@ public static class Utils
     public static string PrintUPFG(Upfg guidance, Simulator sim)
     {
 
-        Console.WriteLine("--------------------GUIDANCE PARAMETERS -------------------");
+        // Console.WriteLine("--------------------GUIDANCE PARAMETERS -------------------");
         var upfgTable = new ConsoleTable("TB", "TGO", "VGO", "RGO", "RGRAV", "RBIAS");
         upfgTable.AddRow(
             guidance.PrevVals.tb.ToString("F1").PadLeft(6),
@@ -409,7 +409,7 @@ public static class Utils
 
         Console.CursorVisible = false;
 
-        Console.WriteLine("-------- ORBITAL ELEMENTS --------");
+        // Console.WriteLine("-------- ORBITAL ELEMENTS --------");
         var transposedTable = new ConsoleTable(" ", "ACTUAL", "TARGET");
 
         // Add each orbital element as a row, with corresponding values from sim.State.Kepler and tgt
