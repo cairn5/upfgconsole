@@ -323,8 +323,8 @@ public class Visualizer
                 BitmapAtlasTextRenderer.DrawText(info, -0.98f, 0.86f, 0.04f * 1.7f, 0f, 1f, 0f, textShaderProgram, fontAtlasTexture);
                 GL.BindVertexArray(0);
                 GL.UseProgram(shaderProgram);
-               
-                string simvars = Utils.PrintVars(sim, upfgTarget, guidance.Vehicle);
+
+                string simvars = upfgTarget.userOutput(sim); ;
 
                 string[] lines = simvars.Split('\n');
                 float y = 0.80f; // Start a bit lower than the top
@@ -356,7 +356,7 @@ public class Visualizer
                 BitmapAtlasTextRenderer.DrawText(info, -0.65f, 0.86f, 0.04f * 1.7f, 0.0f, 1.0f, 0.0f, textShaderProgram, fontAtlasTexture);
                 GL.BindVertexArray(0);
                 GL.UseProgram(shaderProgram);
-                string simvars = Utils.PrintUPFG(upfgMode.upfg, sim);
+                string simvars = upfgMode.userOutput(sim);
 
                 string[] lines = simvars.Split('\n');
                 float y = 0.80f; // Start a bit lower than the top

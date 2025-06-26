@@ -7,7 +7,7 @@ using System.Numerics;
 using System.Reflection;
 using System.Security;
 using ScottPlot.LayoutEngines;
-
+using ConsoleTables;
 
 public enum GuidanceMode
 {
@@ -54,7 +54,7 @@ public class UpfgMode : IGuidanceMode
                 StagingFlag = false;
             }
             upfg.step(sim, veh, upfgTarget);
-            
+
             if (upfg.PrevVals.tgo < 5) return GuidanceMode.FinalBurn;
             else return null;
         }
@@ -63,6 +63,21 @@ public class UpfgMode : IGuidanceMode
     public Vector3? GetSteering()
     {
         return upfg.Steering;
+    }
+
+    public string userOutput(Simulator sim)
+    {
+        
+        // Transposed table: each parameter is a row
+        var upfgTable = new ConsoleTable("PARAM", "VALUE");
+        upfgTable.AddRow("TB", upfg.PrevVals.tb.ToString("F1").PadLeft(6));
+        upfgTable.AddRow("TGO", upfg.PrevVals.tgo.ToString("F1").PadLeft(6));
+        upfgTable.AddRow("VGO", upfg.PrevVals.vgo.Length().ToString("F1").PadLeft(6));
+        upfgTable.AddRow("RGO", (upfg.PrevVals.rd - sim.State.r).Length().ToString("F1").PadLeft(6));
+        upfgTable.AddRow("RGRAV", upfg.PrevVals.rgrav.Length().ToString("F1").PadLeft(6));
+        upfgTable.AddRow("RBIAS", upfg.PrevVals.rbias.Length().ToString("F1").PadLeft(6));
+        return upfgTable.ToString();
+    
     }
 }
 
