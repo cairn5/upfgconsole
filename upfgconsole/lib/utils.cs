@@ -389,17 +389,14 @@ public static class Utils
     public static string PrintUPFG(Upfg guidance, Simulator sim)
     {
 
-        // Console.WriteLine("--------------------GUIDANCE PARAMETERS -------------------");
-        var upfgTable = new ConsoleTable("TB", "TGO", "VGO", "RGO", "RGRAV", "RBIAS");
-        upfgTable.AddRow(
-            guidance.PrevVals.tb.ToString("F1").PadLeft(6),
-            guidance.PrevVals.tgo.ToString("F1").PadLeft(6),
-            guidance.PrevVals.vgo.Length().ToString("F1").PadLeft(6),
-            (guidance.PrevVals.rd - sim.State.r).Length().ToString("F1").PadLeft(6),
-            guidance.PrevVals.rgrav.Length().ToString("F1").PadLeft(6),
-            guidance.PrevVals.rbias.Length().ToString("F1").PadLeft(6)
-        );
-        // upfgTable.Write(Format.Alternative);
+        // Transposed table: each parameter is a row
+        var upfgTable = new ConsoleTable("PARAM", "VALUE");
+        upfgTable.AddRow("TB", guidance.PrevVals.tb.ToString("F1").PadLeft(6));
+        upfgTable.AddRow("TGO", guidance.PrevVals.tgo.ToString("F1").PadLeft(6));
+        upfgTable.AddRow("VGO", guidance.PrevVals.vgo.Length().ToString("F1").PadLeft(6));
+        upfgTable.AddRow("RGO", (guidance.PrevVals.rd - sim.State.r).Length().ToString("F1").PadLeft(6));
+        upfgTable.AddRow("RGRAV", guidance.PrevVals.rgrav.Length().ToString("F1").PadLeft(6));
+        upfgTable.AddRow("RBIAS", guidance.PrevVals.rbias.Length().ToString("F1").PadLeft(6));
         return upfgTable.ToString();
     }
 
