@@ -10,7 +10,7 @@
 //   - 3D wireframe sphere (latitude/longitude lines) with aspect-correct rendering
 //   - Robust OpenGL resource management and cross-platform compatibility
 //   - Modular code: font and text rendering logic in separate static classes
-//   - Comprehensive comments for all major sections and logic
+//   - Comprehensive comments for all mad`jor sections and logic
 
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.Common;
@@ -234,6 +234,13 @@ public partial class Visualizer
             DrawTargetParams(guidance, sim, textShaderProgram, fontAtlasTexture);
             DrawUpfgParams(guidance, sim, textShaderProgram, fontAtlasTexture);
 
+            // Set graph scale and position parameters
+            Vector3 graphScale = new Vector3(0.3f, 0.3f, 1f);
+            Vector3 graphTranslation = new Vector3(-0.65f, -0.6f, 0f);
+            DrawGraphs(shaderProgram, overlayVao, overlayVbo, sim, view, projection, textShaderProgram, fontAtlasTexture, graphScale, graphTranslation);
+
+
+
             window.SwapBuffers();
         };
 
@@ -265,5 +272,127 @@ public partial class Visualizer
 
         window.Run();
     }
+// nt textShaderProgram, int fontAtlasTexture, Vector3 position, Vector3 velocity, double time, float mass, GuidanceMode guidanceMode
+    private static void DrawGraphs(int shaderProgram, int overlayVao, int overlayVbo, Simulator sim, Matrix4 view, Matrix4 projection, int textShaderProgram, int fontAtlasTexture, Vector3 graphScale, Vector3 graphTranslation)
+    {
+        if (sim.History == null || sim.History.Count == 0)
+            return;
+        int n = sim.History.Count;
+        float xMin = 0f, xMax = 2000000f; // meters
+        float yMin = 0f, yMax = 300000f;  // meters
+        float[] trajData = new float[n * 3];
+        for (int i = 0; i < n; i++)
+        {
+            SimState state = Utils.ECItoECEF(sim.History[i]);
+            float downrange = Utils.CalcDownRange(state, Utils.ECItoECEF(sim.History[0])); // meters
+            float alt = (float)sim.History[i].Misc["altitude"];
+            // Map to NDC [-1, 1] using fixed scale
+            float x_ndc = 2f * (downrange - xMin) / (xMax - xMin) - 1f;
+            float y_ndc = 2f * (alt - yMin) / (yMax - yMin) - 1f;
+            // Clamp to [-1, 1]
+            x_ndc = MathF.Max(-1f, MathF.Min(1f, x_ndc));
+            y_ndc = MathF.Max(-1f, MathF.Min(1f, y_ndc));
+            trajData[i * 3] = x_ndc;
+            trajData[i * 3 + 1] = y_ndc;
+            trajData[i * 3 + 2] = 0f;
+        }
+        // Draw trajectory line
+        GL.UseProgram(shaderProgram);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, overlayVbo);
+        GL.BufferData(BufferTarget.ArrayBuffer, trajData.Length * sizeof(float), trajData, BufferUsageHint.DynamicDraw);
+        GL.BindVertexArray(overlayVao);
+        SetUniformColor(shaderProgram, 0.0f, 1.0f, 0.0f, 0.8f);
+        Matrix4 transform = Matrix4.CreateScale(graphScale) * Matrix4.CreateTranslation(graphTranslation);
+        SetUniformMatrix(shaderProgram, "transform", transform);
+        GL.LineWidth(2.0f);
+        GL.DrawArrays(PrimitiveType.LineStrip, 0, n);
+        // Draw axes and ticks with correct scale
+        DrawAxesAndTicks(shaderProgram, overlayVao, overlayVbo, xMin, xMax, yMin, yMax, textShaderProgram, fontAtlasTexture, graphScale, graphTranslation);
+        GL.BindVertexArray(0);
+        GL.UseProgram(0);
+    }
 
+    // Draws x and y axes with ticks and tick labels (uses DrawText for labels)
+    // Now takes textShaderProgram and fontAtlasTexture as parameters
+    private static void DrawAxesAndTicks(int shaderProgram, int overlayVao, int overlayVbo, float xMin, float xMax, float yMin, float yMax, int textShaderProgram, int fontAtlasTexture, Vector3 graphScale, Vector3 graphTranslation)
+    {
+        // Axes: x from (-1, -1) to (1, -1), y from (-1, -1) to (-1, 1)
+        float[] axes = new float[] {
+            -1f, -1f, 0f,   1f, -1f, 0f, // x axis
+            -1f, -1f, 0f,  -1f,  1f, 0f  // y axis
+        };
+        // Use the same transform as the trajectory line
+        Matrix4 transform = Matrix4.CreateScale(graphScale) * Matrix4.CreateTranslation(graphTranslation);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, overlayVbo);
+        GL.BufferData(BufferTarget.ArrayBuffer, axes.Length * sizeof(float), axes, BufferUsageHint.DynamicDraw);
+        GL.BindVertexArray(overlayVao);
+        SetUniformColor(shaderProgram, 1.0f, 1.0f, 1.0f, 1.0f);
+        // SetUniformMatrix(shaderProgram, "transform", transform);
+        GL.LineWidth(2.5f);
+        SetUniformMatrix(shaderProgram, "transform", transform);
+        GL.DrawArrays(PrimitiveType.Lines, 0, 4);
+        // Draw ticks
+        int numXTicks = 10, numYTicks = 6;
+        float tickLen = 0.025f; // in NDC
+        // X ticks (bottom)
+        for (int i = 0; i <= numXTicks; i++)
+        {
+            float x = -1f + 2f * i / numXTicks;
+            float[] tick = new float[] { x, -1f, 0f, x, -1f + tickLen, 0f };
+            GL.BufferData(BufferTarget.ArrayBuffer, tick.Length * sizeof(float), tick, BufferUsageHint.DynamicDraw);
+            SetUniformMatrix(shaderProgram, "transform", transform);
+            GL.DrawArrays(PrimitiveType.Lines, 0, 2);
+            float[] gridLine = new float[] { x, -1f, 0f, x, 1f, 0f };
+            GL.LineWidth(1.0f);
+            SetUniformColor(shaderProgram, 1f, 1f, 1f, 0.15f);
+            GL.BufferData(BufferTarget.ArrayBuffer, gridLine.Length * sizeof(float), gridLine, BufferUsageHint.DynamicDraw);
+            SetUniformMatrix(shaderProgram, "transform", transform);
+            GL.DrawArrays(PrimitiveType.Lines, 0, 2);
+            SetUniformColor(shaderProgram, 1.0f, 1.0f, 1.0f, 1.0f);
+            float userX = xMin + (x + 1f) * 0.5f * (xMax - xMin);
+            string label = $"{userX / 100000f:0}";
+            // Manually apply scale and translation to label position
+            float labelX = x * graphScale.X + graphTranslation.X;
+            float labelY = (-1f - 0.06f) * graphScale.Y + graphTranslation.Y;
+            DrawTextSafe(label, labelX, labelY, 0.04f, 1f, 1f, 1f, textShaderProgram, fontAtlasTexture);
+        }
+        // Y ticks (left)
+        for (int i = 0; i <= numYTicks; i++)
+        {
+            float y = -1f + 2f * i / numYTicks;
+            float[] tick = new float[] { -1f, y, 0f, -1f + tickLen, y, 0f };
+            GL.BufferData(BufferTarget.ArrayBuffer, tick.Length * sizeof(float), tick, BufferUsageHint.DynamicDraw);
+            SetUniformMatrix(shaderProgram, "transform", transform);
+            GL.DrawArrays(PrimitiveType.Lines, 0, 2);
+            float[] gridLine = new float[] { -1f, y, 0f, 1f, y, 0f };
+            GL.LineWidth(1.0f);
+            SetUniformColor(shaderProgram, 1f, 1f, 1f, 0.15f);
+            GL.BufferData(BufferTarget.ArrayBuffer, gridLine.Length * sizeof(float), gridLine, BufferUsageHint.DynamicDraw);
+            SetUniformMatrix(shaderProgram, "transform", transform);
+            GL.DrawArrays(PrimitiveType.Lines, 0, 2);
+            SetUniformColor(shaderProgram, 1.0f, 1.0f, 1.0f, 1.0f);
+            float userY = yMin + (y + 1f) * 0.5f * (yMax - yMin);
+            string label = $"{userY / 10000f:0}";
+            // Manually apply scale and translation to label position
+            float labelX = (-1f - 0.10f) * graphScale.X + graphTranslation.X;
+            float labelY = (y - 0.02f) * graphScale.Y + graphTranslation.Y;
+            DrawTextSafe(label, labelX, labelY, 0.04f, 1f, 1f, 1f, textShaderProgram, fontAtlasTexture);
+        }
+        // Restore state
+        GL.BindVertexArray(0);
+    }
+
+    // Helper to draw text at NDC position (x, y), with scale and color, safely restoring OpenGL state
+    private static void DrawTextSafe(string text, float x, float y, float scale, float r, float g, float b, int textShaderProgram, int fontAtlasTexture)
+    {
+        // Save current program and VAO
+        int prevProgram, prevVao;
+        GL.GetInteger(GetPName.CurrentProgram, out prevProgram);
+        GL.GetInteger(GetPName.VertexArrayBinding, out prevVao);
+        // Use text shader and font atlas
+        BitmapAtlasTextRenderer.DrawText(text, x, y, scale, r, g, b, textShaderProgram, fontAtlasTexture);
+        // Restore previous state
+        GL.UseProgram(prevProgram);
+        GL.BindVertexArray(prevVao);
+    }
 }
