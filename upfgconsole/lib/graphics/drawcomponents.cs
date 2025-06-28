@@ -145,7 +145,7 @@ public partial class Visualizer
         if (mode is UpfgMode upfgMode)
         {
             string info = "UPFG PARAMS";
-            BitmapAtlasTextRenderer.DrawText(info, -0.65f, 0.86f, 0.04f * 1.7f, 0.0f, 1.0f, 0.0f, textShaderProgram, fontAtlasTexture);
+            BitmapAtlasTextRenderer.DrawText(info, -0.6f, 0.86f, 0.04f * 1.7f, 0.0f, 1.0f, 0.0f, textShaderProgram, fontAtlasTexture);
             GL.BindVertexArray(0);
             GL.UseProgram(0);
             string simvars = upfgMode.userOutput(sim);
@@ -159,7 +159,7 @@ public partial class Visualizer
                     continue;
                 if (!string.IsNullOrWhiteSpace(line))
                 {
-                    BitmapAtlasTextRenderer.DrawText(line, -0.65f, y, 0.04f, 1f, 1f, 1f, textShaderProgram, fontAtlasTexture);
+                    BitmapAtlasTextRenderer.DrawText(line, -0.6f, y, 0.04f, 1f, 1f, 1f, textShaderProgram, fontAtlasTexture);
                     y -= lineSpacing;
                 }
             }

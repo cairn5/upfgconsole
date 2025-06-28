@@ -31,7 +31,7 @@ public partial class Visualizer
         var nativeWindowSettings = new NativeWindowSettings()
         {
             ClientSize = new Vector2i(1600, 800),
-            Title = "Real-time Rocket Trajectory Visualization",
+            Title = "Navbox",
         };
 
         var gameWindowSettings = new GameWindowSettings()
@@ -235,7 +235,7 @@ public partial class Visualizer
             DrawUpfgParams(guidance, sim, textShaderProgram, fontAtlasTexture);
 
             // Set graph scale and position parameters
-            Vector3 graphScale = new Vector3(0.3f, 0.3f, 1f);
+            Vector3 graphScale = new Vector3(0.15f, 0.25f, 1f);
             Vector3 graphTranslation = new Vector3(-0.65f, -0.6f, 0f);
             DrawGraphs(shaderProgram, overlayVao, overlayVbo, sim, view, projection, textShaderProgram, fontAtlasTexture, graphScale, graphTranslation);
 
@@ -278,6 +278,7 @@ public partial class Visualizer
         if (sim.History == null || sim.History.Count == 0)
             return;
         int n = sim.History.Count;
+        // --- Original Downrange vs Altitude Graph ---
         float xMin = 0f, xMax = 2000000f; // meters
         float yMin = 0f, yMax = 300000f;  // meters
         float[] trajData = new float[n * 3];
@@ -286,17 +287,14 @@ public partial class Visualizer
             SimState state = Utils.ECItoECEF(sim.History[i]);
             float downrange = Utils.CalcDownRange(state, Utils.ECItoECEF(sim.History[0])); // meters
             float alt = (float)sim.History[i].Misc["altitude"];
-            // Map to NDC [-1, 1] using fixed scale
             float x_ndc = 2f * (downrange - xMin) / (xMax - xMin) - 1f;
             float y_ndc = 2f * (alt - yMin) / (yMax - yMin) - 1f;
-            // Clamp to [-1, 1]
             x_ndc = MathF.Max(-1f, MathF.Min(1f, x_ndc));
-            y_ndc = MathF.Max(-1f, MathF.Min(1f, y_ndc));
+            // y_ndc = MathF.Max(-1f, MathF.Min(1f, y_ndc));
             trajData[i * 3] = x_ndc;
             trajData[i * 3 + 1] = y_ndc;
             trajData[i * 3 + 2] = 0f;
         }
-        // Draw trajectory line
         GL.UseProgram(shaderProgram);
         GL.BindBuffer(BufferTarget.ArrayBuffer, overlayVbo);
         GL.BufferData(BufferTarget.ArrayBuffer, trajData.Length * sizeof(float), trajData, BufferUsageHint.DynamicDraw);
@@ -306,15 +304,46 @@ public partial class Visualizer
         SetUniformMatrix(shaderProgram, "transform", transform);
         GL.LineWidth(2.0f);
         GL.DrawArrays(PrimitiveType.LineStrip, 0, n);
-        // Draw axes and ticks with correct scale
-        DrawAxesAndTicks(shaderProgram, overlayVao, overlayVbo, xMin, xMax, yMin, yMax, textShaderProgram, fontAtlasTexture, graphScale, graphTranslation);
+        DrawAxesAndTicks(shaderProgram, overlayVao, overlayVbo, xMin, xMax, yMin, yMax, textShaderProgram, fontAtlasTexture, graphScale, graphTranslation, "km", "km");
+        GL.BindVertexArray(0);
+        GL.UseProgram(0);
+
+        // --- Latitude vs Longitude Graph ---
+        float latMin = -90f, latMax = 90f;
+        float lonMin = -180f, lonMax = 180f;
+        float[] latLongData = new float[n * 3];
+        for (int i = 0; i < n; i++)
+        {
+            float lat = MathHelper.RadToDeg*(float)sim.History[i].Misc["latitude"];
+            float lon = MathHelper.RadToDeg*(float)sim.History[i].Misc["longitude"];
+            float x_ndc = 2f * (lon - lonMin) / (lonMax - lonMin) - 1f;
+            float y_ndc = 2f * (lat - latMin) / (latMax - latMin) - 1f;
+            // x_ndc = MathF.Max(-1f, MathF.Min(1f, x_ndc));
+            // y_ndc = MathF.Max(-1f, MathF.Min(1f, y_ndc));
+            latLongData[i * 3] = x_ndc;
+            latLongData[i * 3 + 1] = y_ndc;
+            latLongData[i * 3 + 2] = 0f;
+        }
+        // Place this graph to the right of the original
+        Vector3 latLongGraphScale = graphScale * 1f;
+        Vector3 latLongGraphTranslation = new Vector3(graphTranslation.X + graphScale.X + 0.2f, graphTranslation.Y, graphTranslation.Z);
+        GL.UseProgram(shaderProgram);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, overlayVbo);
+        GL.BufferData(BufferTarget.ArrayBuffer, latLongData.Length * sizeof(float), latLongData, BufferUsageHint.DynamicDraw);
+        GL.BindVertexArray(overlayVao);
+        SetUniformColor(shaderProgram, 0.0f, 1.0f, 0.0f, 0.8f);
+        Matrix4 latLongTransform = Matrix4.CreateScale(latLongGraphScale) * Matrix4.CreateTranslation(latLongGraphTranslation);
+        SetUniformMatrix(shaderProgram, "transform", latLongTransform);
+        GL.LineWidth(2.0f);
+        GL.DrawArrays(PrimitiveType.LineStrip, 0, n);
+        DrawAxesAndTicks(shaderProgram, overlayVao, overlayVbo, lonMin, lonMax, latMin, latMax, textShaderProgram, fontAtlasTexture, latLongGraphScale, latLongGraphTranslation, "deg", "deg");
         GL.BindVertexArray(0);
         GL.UseProgram(0);
     }
 
     // Draws x and y axes with ticks and tick labels (uses DrawText for labels)
     // Now takes textShaderProgram and fontAtlasTexture as parameters
-    private static void DrawAxesAndTicks(int shaderProgram, int overlayVao, int overlayVbo, float xMin, float xMax, float yMin, float yMax, int textShaderProgram, int fontAtlasTexture, Vector3 graphScale, Vector3 graphTranslation)
+    private static void DrawAxesAndTicks(int shaderProgram, int overlayVao, int overlayVbo, float xMin, float xMax, float yMin, float yMax, int textShaderProgram, int fontAtlasTexture, Vector3 graphScale, Vector3 graphTranslation, string xLabel, string yLabel)
     {
         // Axes: x from (-1, -1) to (1, -1), y from (-1, -1) to (-1, 1)
         float[] axes = new float[] {
@@ -378,6 +407,15 @@ public partial class Visualizer
             float labelY = (y - 0.02f) * graphScale.Y + graphTranslation.Y;
             DrawTextSafe(label, labelX, labelY, 0.04f, 1f, 1f, 1f, textShaderProgram, fontAtlasTexture);
         }
+        // Draw axis labels
+        // X axis label
+        float xLabelX = 0f * graphScale.X + graphTranslation.X;
+        float xLabelY = (-1.18f) * graphScale.Y + graphTranslation.Y;
+        DrawTextSafe(xLabel, xLabelX, xLabelY, 0.045f, 1f, 1f, 1f, textShaderProgram, fontAtlasTexture);
+        // Y axis label (rotated not supported, so just place left)
+        float yLabelX = (-1.22f) * graphScale.X + graphTranslation.X;
+        float yLabelY = 0f * graphScale.Y + graphTranslation.Y;
+        DrawTextSafe(yLabel, yLabelX, yLabelY, 0.045f, 1f, 1f, 1f, textShaderProgram, fontAtlasTexture);
         // Restore state
         GL.BindVertexArray(0);
     }

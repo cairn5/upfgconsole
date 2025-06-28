@@ -35,17 +35,6 @@ public static class Constants
 
 public static class Utils
 {
-    public static MissionConfig ReadMission(string filepath)
-    {
-
-        string json = File.ReadAllText(filepath);
-
-        MissionConfig config = JsonSerializer.Deserialize<MissionConfig>(json);
-
-        return config;
-
-    }
-
     public static double CalcLaunchAzimuthNonRotating(double inc, double lat)
     {
         double azimuth = Math.Asin(Math.Cos(Utils.DegToRad(inc) / Math.Cos(Utils.DegToRad(lat))));

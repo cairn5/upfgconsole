@@ -244,7 +244,7 @@ public static class BitmapAtlasTextRenderer
             indices[ibase + 4] = quad * 4 + 3;
             indices[ibase + 5] = quad * 4 + 0;
             quad++;
-            cursorX += 0.5f * glyphW;
+            cursorX += 0.6f * glyphW;
         }
         if (quad == 0) return;
         int vbo = GL.GenBuffer();

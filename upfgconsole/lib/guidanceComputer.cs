@@ -8,6 +8,7 @@ using System.Reflection;
 using System.Security;
 using ScottPlot.LayoutEngines;
 using ConsoleTables;
+using System.Xml;
 
 public enum GuidanceMode
 {
@@ -162,16 +163,17 @@ public class GravityTurnMode : IGuidanceMode
 
 public class GuidanceProgram
 {
-    public Dictionary<GuidanceMode, IGuidanceMode> Modes { get; } = new();
-    public Dictionary<GuidanceMode, IGuidanceTarget> Targets { get; } = new();
+    public Dictionary<GuidanceMode, IGuidanceMode> Modes { get; set; } = new();
+    public Dictionary<GuidanceMode, IGuidanceTarget> Targets { get; set; } = new();
     public GuidanceMode ActiveMode { get; set; }
     public Vehicle Vehicle { get; set; }
     public Simulator Simulator { get; set; }
     public Vector3? steering { get; set; }
     public bool StagingFlag { get; set; }
-    private int _lastStageCount;
+    protected int _lastStageCount;
+    public float dt { get; set; } = 1.0f;
 
-    public GuidanceProgram(Dictionary<GuidanceMode, IGuidanceTarget> targets, Vehicle veh, Simulator sim)
+    public GuidanceProgram(Dictionary<GuidanceMode, IGuidanceTarget> targets, Vehicle veh, Simulator sim, Mission mission)
     {
         Vehicle = veh;
         _lastStageCount = veh.Stages.Count();
@@ -223,4 +225,22 @@ public class GuidanceProgram
     }
 }
 
+public class AscentProgram : GuidanceProgram
+{
+    public AscentProgram(Dictionary<GuidanceMode, IGuidanceTarget> targets, Vehicle veh, Simulator sim, Mission mission)
+        : base(targets, veh, sim, mission)
+    {
+        dt = mission.Guidance.dt;
+        Vehicle = veh;
+        _lastStageCount = veh.Stages.Count();
+        Simulator = sim;
+        Modes[GuidanceMode.Prelaunch] = new PreLaunchMode();
+        Modes[GuidanceMode.Ascent] = new GravityTurnMode();
+        Modes[GuidanceMode.OrbitInsertion] = new UpfgMode();
+        Modes[GuidanceMode.FinalBurn] = new FinalMode();
+        Modes[GuidanceMode.Idle] = new IdleMode();
+        Targets = targets;
+        ActiveMode = GuidanceMode.Prelaunch;
+    }
+}
 

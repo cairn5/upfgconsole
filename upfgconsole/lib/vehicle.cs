@@ -51,7 +51,7 @@ public class Vehicle : ICloneable
         return vehicle;
     }
 
-    public static Vehicle FromStagesJson(MissionConfig mission)
+    public static Vehicle FromStages(Mission mission)
     {
         return new Vehicle
         {

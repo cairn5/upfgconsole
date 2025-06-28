@@ -61,14 +61,14 @@ class Handler
     private static void InitializeSimulation()
     {
         string missionPath = "missions/saturnV.json";
-        string simPath = "missions/simvars.json";
         
-        MissionConfig mission = Utils.ReadMission(missionPath);
-        Vehicle veh = Vehicle.FromStagesJson(mission);
+        Mission mission = Mission.Load(missionPath);
+        Vehicle veh = Vehicle.FromStages(mission);
         Dictionary<string, float> desOrbit = mission.Orbit;
         
+        
         sharedSim = new Simulator();
-        sharedSim.LoadSimVarsFromJson(simPath);
+        sharedSim.LoadSimVarsFromJson(missionPath);
         sharedSim.SetVehicle(veh);
         
         UPFGTarget tgt = new UPFGTarget();
@@ -83,7 +83,7 @@ class Handler
             { GuidanceMode.Idle, tgt}
         };
         
-        sharedGuidance = new GuidanceProgram(targets, veh, sharedSim);
+        sharedGuidance = new AscentProgram(targets, veh, sharedSim, mission);
     }
 
     private static async Task StartSimulationAsync(CancellationToken cancellationToken)

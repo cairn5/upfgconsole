@@ -3,7 +3,7 @@
     "mode": 1,
     "pe": 300,
     "ap": 300,
-    "inc": 45
+    "inc": 28.5
   },
   "StageList": [
     {
@@ -11,8 +11,8 @@
       "Mode": 1,
       "GLim": 100,
       "MassTotal": 420e3,
-      "MassDry": 200e3,
-      "Thrust": 6837e3,
+      "MassDry": 70e3,
+      "Thrust": 2837e3,
       "Isp": 452
     }
   ]

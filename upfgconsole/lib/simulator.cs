@@ -24,6 +24,7 @@ public class Simulator
     public double simspeed { get; private set; }
     public Vector3 ThrustVector { get; private set; }
     public List<SimState> History { get; set; }
+    public double historylen { get; set; }
 
 
     public Simulator()
@@ -127,6 +128,11 @@ public class Simulator
 
         History.Add((SimState)State.Clone());
 
+        while( History.Count > historylen / dt)
+        {
+            History.RemoveAt(0);
+        }
+
         State.r = Iteration["r"];
         State.v = Iteration["v"];
         State.t = State.t + dt;
@@ -158,9 +164,11 @@ public class Simulator
         double airVel = root.GetProperty("airVel").GetDouble();
         double airFpa = root.GetProperty("airFpa").GetDouble();
         float dtlocal = root.GetProperty("dtsim").GetSingle();
-        float dtguidancelocal = root.GetProperty("dtguidance").GetSingle();
         double simspeedlocal = root.GetProperty("speed").GetDouble();
         double altitude = root.GetProperty("altitude").GetSingle();
+        double headinglocal = root.GetProperty("heading").GetSingle();
+        double historylenLocal = root.GetProperty("historylength").GetDouble();
+
 
         // Set initial state using these values
         // Convert degrees to radians where needed
@@ -171,7 +179,7 @@ public class Simulator
         {
             double speed = airVel;
             double fpa = airFpa; // Flight path angle in degrees
-            double heading = 90; // Default east, can be parameterized
+            double heading = headinglocal; // Default east, can be parameterized
 
             var initial = new Dictionary<string, double>
             {
@@ -195,48 +203,8 @@ public class Simulator
             SetVesselStateFromLatLongGround(initial);
         }
         SetTimeStep(dtlocal);
-        this.dtguidance = dtguidancelocal; //this should be in vehicle/ guidance really
         this.simspeed = simspeedlocal;
-    }
-
-
-    public void LoadSimVarsFromDash(SimParams simParams)
-    {
-
-        // Set initial state using these values
-        // Convert degrees to radians where needed
-        double latitude = Utils.DegToRad(simParams.StartLat);
-        double longitude = Utils.DegToRad(simParams.StartLong);
-
-        if (simParams.StartGround == 0)
-        {
-            double speed = simParams.AirVel;
-            double fpa = simParams.AirFpa; // Flight path angle in degrees
-            double heading = 90; // Default east, can be parameterized
-
-            var initial = new Dictionary<string, double>
-            {
-                {"altitude", simParams.Altitude},
-                {"fpa", fpa},
-                {"latitude", latitude},
-                {"longitude", longitude},
-                {"heading", heading},
-                {"speed", speed}
-            };
-            SetVesselStateFromLatLongAir(initial);
-        }
-        if (simParams.StartGround == 1)
-        {
-
-            var initial = new Dictionary<string, double>
-            {
-                {"latitude", latitude},
-                {"longitude", longitude}
-            };
-            SetVesselStateFromLatLongGround(initial);
-        }
-        SetTimeStep((float)simParams.dtsim);
-        this.simspeed = simParams.Speed;
+        historylen = historylenLocal;
     }
 
 
