@@ -6,6 +6,7 @@ using System.Numerics;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security;
+using OpenTK.Platform.Windows;
 using ScottPlot.LayoutEngines;
 
 namespace lib;
@@ -134,7 +135,12 @@ public class Upfg
         int n = vehicle.Stages.Count;
         List<int> stageModes;
         List<double> accelLimits, massFlows, exhaustVelocities, thrusts, thrustAccelerations, characteristicTimes, burnTimes;
-        InitializeStageParameters(vehicle, out stageModes, out accelLimits, out massFlows, out exhaustVelocities, out thrusts, out thrustAccelerations, out characteristicTimes, out burnTimes);
+        bool splitOccurred = InitializeStageParameters(vehicle, out stageModes, out accelLimits, out massFlows, out exhaustVelocities, out thrusts, out thrustAccelerations, out characteristicTimes, out burnTimes);
+        // If a split occurred, the number of stages will have changed, so recursively re-run Run with the new vehicle
+        if (splitOccurred) {
+            Run(sim, vehicle);
+            return;
+        }
 
         // 2 - Accelerations
         UpdateAccelerations(t, tp, v_, vprev, ref vgo, ref burnTimes);
@@ -142,8 +148,19 @@ public class Upfg
         // Update first stage parameters with current mass (critical fix)
         if (stageModes[0] == 1)
         {
-            thrustAccelerations[0] = thrusts[0] / m;
-            characteristicTimes[0] = exhaustVelocities[0] / thrustAccelerations[0];
+            // Only update if mass is above dry mass and thrustAccelerations[0] > 0
+            double minMass = vehicle.Stages[0].MassDry + 1e-6;
+            if (m > minMass && thrusts[0] > 0)
+            {
+                thrustAccelerations[0] = thrusts[0] / m;
+                if (thrustAccelerations[0] > 0)
+                {
+                    characteristicTimes[0] = exhaustVelocities[0] / thrustAccelerations[0];
+                    // Clamp characteristicTime to be slightly above burnTime
+                    if (characteristicTimes[0] <= burnTimes[0])
+                        characteristicTimes[0] = burnTimes[0] + 1e-3;
+                }
+            }
         }
 
         // 3 - Burn time calculation
@@ -151,7 +168,17 @@ public class Upfg
         List<double> tgoi;
         double L;
         double tgo;
+        // Console.WriteLine("Before ComputeBurnTimes:");
+        // for (int i = 0; i < stageModes.Count; i++)
+        // {
+        //     Console.WriteLine($"  Stage {i}: mode={stageModes[i]}, thrust={thrusts[i]}, accelLim={accelLimits[i]}, exVel={exhaustVelocities[i]}, thrustAccel={thrustAccelerations[i]}, charTime={characteristicTimes[i]}, burnTime={burnTimes[i]}");
+        // }
         ComputeBurnTimes(stageModes, thrusts, accelLimits, exhaustVelocities, thrustAccelerations, characteristicTimes, burnTimes, vgo, out Li, out L, out tgoi, out tgo);
+        // Console.WriteLine("After ComputeBurnTimes:");
+        // for (int i = 0; i < stageModes.Count; i++)
+        // {
+        //     Console.WriteLine($"  Stage {i}: burnTime={burnTimes[i]}, charTime={characteristicTimes[i]}");
+        // }
 
         //Check that we don't have too many stages
         if (L > vgo.Length())
@@ -194,6 +221,13 @@ public class Upfg
         CurrentVals.SetVals(cser, rbias, rd, rgrav, PrevVals.tb + dt, t, tgo, v_, vgo);
         PrevVals = CurrentVals;
 
+        //9 - Calculate thrust setting
+        if (stageModes[0] == 2)
+        {
+            double thrustSetting = accelLimits[0] / (thrusts[0] / m);
+            iF_ = (float)thrustSetting * iF_;
+        }
+
         CheckConvergence();
         if (!ConvergenceFlag)
         {
@@ -203,7 +237,7 @@ public class Upfg
         
     }
 
-    private void InitializeStageParameters(Vehicle vehicle, out List<int> stageModes, out List<double> accelLimits, out List<double> massFlows, out List<double> exhaustVelocities, out List<double> thrusts, out List<double> thrustAccelerations, out List<double> characteristicTimes, out List<double> burnTimes)
+    private bool InitializeStageParameters(Vehicle vehicle, out List<int> stageModes, out List<double> accelLimits, out List<double> massFlows, out List<double> exhaustVelocities, out List<double> thrusts, out List<double> thrustAccelerations, out List<double> characteristicTimes, out List<double> burnTimes)
     {
         int n = vehicle.Stages.Count;
         stageModes = new List<int>();
@@ -217,6 +251,42 @@ public class Upfg
         for (int i = 0; i < n; i++)
         {
             var stage = vehicle.Stages[i];
+
+            if (stage.Mode == 2 && stage.Thrust / stage.MassTotal < stage.GLim * Constants.g0)
+            {
+                //add another stage when accel = glim
+                double accel = stage.GLim * Constants.g0;
+                double massRequired = stage.Thrust / accel;
+                Stage newStage = new Stage
+                {
+                    Id = stage.Id + 1,
+                    Mode = 2, // Constant acceleration mode
+                    GLim = stage.GLim,
+                    MassTotal = massRequired,
+                    MassDry = stage.MassDry,
+                    Thrust = stage.Thrust,
+                    Isp = stage.Isp
+                };
+                Stage oldStage = new Stage
+                {
+                    Id = stage.Id,
+                    Mode = 1, // Constant thrust mode
+                    GLim = stage.GLim,
+                    MassTotal = stage.MassTotal,
+                    MassDry = massRequired,
+                    Thrust = stage.Thrust,
+                    Isp = stage.Isp
+                };
+
+                vehicle.Stages[i] = oldStage;
+                vehicle.Stages.Insert(i + 1, newStage);
+                Console.WriteLine($"Stage {stage.Id} split into two stages: {oldStage.Id} (constant thrust) and {newStage.Id} (constant acceleration).");
+                // Console.WriteLine($"  OldStage: MassTotal={oldStage.MassTotal}, MassDry={oldStage.MassDry}, Thrust={oldStage.Thrust}, Isp={oldStage.Isp}, GLim={oldStage.GLim}");
+                // Console.WriteLine($"  NewStage: MassTotal={newStage.MassTotal}, MassDry={newStage.MassDry}, Thrust={newStage.Thrust}, Isp={newStage.Isp}, GLim={newStage.GLim}");
+                // Return true to indicate a split occurred and prevent further processing
+                return true;
+            }
+
             double massflow = stage.Thrust / (stage.Isp * Constants.g0);
             stageModes.Add(stage.Mode);
             accelLimits.Add(stage.GLim * Constants.g0);
@@ -226,7 +296,9 @@ public class Upfg
             thrustAccelerations.Add(stage.Thrust / stage.MassTotal);
             characteristicTimes.Add(exhaustVelocities[i] / thrustAccelerations[i]);
             burnTimes.Add((stage.MassTotal - stage.MassDry) / massflow);
+            // Console.WriteLine($"Stage {stage.Id}: Mode={stage.Mode}, MassTotal={stage.MassTotal}, MassDry={stage.MassDry}, Thrust={stage.Thrust}, Isp={stage.Isp}, GLim={stage.GLim}, massflow={massflow}, accel={stage.Thrust / stage.MassTotal}, charTime={exhaustVelocities[i] / thrustAccelerations[i]}, burnTime={(stage.MassTotal - stage.MassDry) / massflow}");
         }
+        return false;
     }
 
     private void UpdateAccelerations(double t, double tp, Vector3 v_, Vector3 vprev, ref Vector3 vgo, ref List<double> burnTimes)
@@ -245,7 +317,13 @@ public class Upfg
         for (int i = 0; i < n - 1; i++)
         {
             if (stageModes[i] == 1)
-                Li.Add(exhaustVelocities[i] * Math.Log(characteristicTimes[i] / (characteristicTimes[i] - burnTimes[i])));
+            {
+                // Clamp denominator to avoid log of zero or negative
+                double denom = Math.Max(characteristicTimes[i] - burnTimes[i], 1e-6);
+                double ratio = characteristicTimes[i] / denom;
+                if (ratio <= 0) ratio = 1e-6;
+                Li.Add(exhaustVelocities[i] * Math.Log(ratio));
+            }
             else if (stageModes[i] == 2)
                 Li.Add(accelLimits[i] * burnTimes[i]);
             L += Li[i];
@@ -255,9 +333,13 @@ public class Upfg
         tgoi = new List<double>();
         for (int i = 0; i < n; i++)
         {
-            if (stageModes[i] == 1)  // Fixed: was stageModes[0], now uses stageModes[i]
-                burnTimes[i] = characteristicTimes[i] * (1 - Math.Exp(-Li[i] / exhaustVelocities[i]));
-            else if (stageModes[i] == 2)  // Fixed: was stageModes[0], now uses stageModes[i]
+            if (stageModes[i] == 1)
+            {
+                // Clamp denominator to avoid division by zero
+                double exvel = Math.Max(exhaustVelocities[i], 1e-6);
+                burnTimes[i] = characteristicTimes[i] * (1 - Math.Exp(-Li[i] / exvel));
+            }
+            else if (stageModes[i] == 2)
                 burnTimes[i] = Li[i] / accelLimits[i];
             if (i == 0)
                 tgoi.Add(burnTimes[i]);

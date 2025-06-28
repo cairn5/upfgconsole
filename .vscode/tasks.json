@@ -1,0 +1,11 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "shell",
+			"label": "dotnet build upfgconsole",
+			"command": "dotnet build upfgconsole/upfgconsole.csproj",
+			"group": "build"
+		}
+	]
+}

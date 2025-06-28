@@ -28,10 +28,10 @@ class Handler
     private static bool simulationRunning = true;
     private static CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
 
-    static void Main()
+    static void Main(string[] args)
     {
         // Initialize simulation
-        InitializeSimulation();
+        InitializeSimulation(args);
         
         // Start simulation on background thread
         Task simulationTask = StartSimulationAsync(cancellationTokenSource.Token);
@@ -58,9 +58,9 @@ class Handler
         }
     }
 
-    private static void InitializeSimulation()
+    private static void InitializeSimulation(string[] args)
     {
-        string missionPath = "missions/saturnV.json";
+        string missionPath = args.Length > 0 ? args[0] : "missions/saturnV.json";
         
         Mission mission = Mission.Load(missionPath);
         Vehicle veh = Vehicle.FromStages(mission);

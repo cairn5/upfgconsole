@@ -219,17 +219,20 @@ public partial class Visualizer
             var (steering, guidanceMode) = Handler.GetGuidanceInfo();
 
             float aspectRatio = window.Size.X / (float)window.Size.Y;
-            Matrix4 projection = Matrix4.CreateTranslation(new Vector3(7000000f, 0f, 0f)) * Matrix4.CreatePerspectiveFieldOfView(
+            Matrix4 projection =  Matrix4.CreatePerspectiveFieldOfView(
                 MathHelper.DegreesToRadians(45f), aspectRatio, 100f, 50000000f);
-            Vector3 cameraOffset = new Vector3(0, -6000000f, 0);
+            // Shift all 3D objects to the right in NDC (screen space)
+            Matrix4 ndcShift = Matrix4.CreateTranslation(new Vector3(0.2f, 0f, 0f)); // 0.4 NDC units right
+            Matrix4 shiftedProjection = ndcShift * projection;
+            Vector3 cameraOffset = new Vector3(-000000f, 0f, 0);
             Vector3 cameraPos = (Vector3)position * 3 + cameraOffset;
-            Matrix4 view = Matrix4.LookAt(cameraPos, (Vector3)position, Vector3.UnitY);
+            Matrix4 view = Matrix4.LookAt(cameraPos, (Vector3)position, Vector3.UnitY) * Matrix4.CreateTranslation(new Vector3(7000000f, 0f, 0f));
 
-            DrawEarth(shaderProgram, earthVao, earthIndexCount, view, projection);
-            DrawVehicle(shaderProgram, vehicleVao, vehicleIndexCount, (Vector3)position, view, projection);
-            DrawTrajectoryTrail(shaderProgram, trajVao, trajVbo, trajectoryHistory.Select(v => new Vector3(v.X, v.Y, v.Z)).ToList(), view, projection);
-            DrawKeplerOrbit(shaderProgram, keplerVao, keplerVbo, sim, view, projection);
-            DrawSteeringVector(shaderProgram, steeringVao, steeringVbo, (Vector3)steering, (Vector3)position, view, projection);
+            DrawEarth(shaderProgram, earthVao, earthIndexCount, view, shiftedProjection);
+            DrawVehicle(shaderProgram, vehicleVao, vehicleIndexCount, (Vector3)position, view, shiftedProjection);
+            DrawTrajectoryTrail(shaderProgram, trajVao, trajVbo, trajectoryHistory.Select(v => new Vector3(v.X, v.Y, v.Z)).ToList(), view, shiftedProjection);
+            DrawKeplerOrbit(shaderProgram, keplerVao, keplerVbo, sim, view, shiftedProjection);
+            DrawSteeringVector(shaderProgram, steeringVao, steeringVbo, (Vector3)steering, (Vector3)position, view, shiftedProjection);
             DrawTextInfoOverlay(textShaderProgram, fontAtlasTexture, (Vector3)position, (Vector3)velocity, time, mass, guidanceMode);
             DrawTargetParams(guidance, sim, textShaderProgram, fontAtlasTexture);
             DrawUpfgParams(guidance, sim, textShaderProgram, fontAtlasTexture);
@@ -281,20 +284,28 @@ public partial class Visualizer
         // --- Original Downrange vs Altitude Graph ---
         float xMin = 0f, xMax = 2000000f; // meters
         float yMin = 0f, yMax = 300000f;  // meters
+        float vMin = 0f, vMax = 8000f;    // velocity in m/s (adjust as needed)
         float[] trajData = new float[n * 3];
+        float[] velData = new float[n * 3];
         for (int i = 0; i < n; i++)
         {
             SimState state = Utils.ECItoECEF(sim.History[i]);
             float downrange = Utils.CalcDownRange(state, Utils.ECItoECEF(sim.History[0])); // meters
             float alt = (float)sim.History[i].Misc["altitude"];
+            float vel = sim.History[i].Misc.ContainsKey("velocity") ? (float)sim.History[i].Misc["velocity"] : state.v.Length();
             float x_ndc = 2f * (downrange - xMin) / (xMax - xMin) - 1f;
             float y_ndc = 2f * (alt - yMin) / (yMax - yMin) - 1f;
+            float v_ndc = 2f * (vel - vMin) / (vMax - vMin) - 1f;
             x_ndc = MathF.Max(-1f, MathF.Min(1f, x_ndc));
             // y_ndc = MathF.Max(-1f, MathF.Min(1f, y_ndc));
             trajData[i * 3] = x_ndc;
             trajData[i * 3 + 1] = y_ndc;
             trajData[i * 3 + 2] = 0f;
+            velData[i * 3] = x_ndc;
+            velData[i * 3 + 1] = v_ndc;
+            velData[i * 3 + 2] = 0f;
         }
+        // Draw altitude vs downrange (green)
         GL.UseProgram(shaderProgram);
         GL.BindBuffer(BufferTarget.ArrayBuffer, overlayVbo);
         GL.BufferData(BufferTarget.ArrayBuffer, trajData.Length * sizeof(float), trajData, BufferUsageHint.DynamicDraw);
@@ -302,6 +313,11 @@ public partial class Visualizer
         SetUniformColor(shaderProgram, 0.0f, 1.0f, 0.0f, 0.8f);
         Matrix4 transform = Matrix4.CreateScale(graphScale) * Matrix4.CreateTranslation(graphTranslation);
         SetUniformMatrix(shaderProgram, "transform", transform);
+        GL.LineWidth(2.0f);
+        GL.DrawArrays(PrimitiveType.LineStrip, 0, n);
+        // Draw velocity vs downrange (blue)
+        GL.BufferData(BufferTarget.ArrayBuffer, velData.Length * sizeof(float), velData, BufferUsageHint.DynamicDraw);
+        SetUniformColor(shaderProgram, 0.2f, 0.4f, 1.0f, 0.8f);
         GL.LineWidth(2.0f);
         GL.DrawArrays(PrimitiveType.LineStrip, 0, n);
         DrawAxesAndTicks(shaderProgram, overlayVao, overlayVbo, xMin, xMax, yMin, yMax, textShaderProgram, fontAtlasTexture, graphScale, graphTranslation, "km", "km");

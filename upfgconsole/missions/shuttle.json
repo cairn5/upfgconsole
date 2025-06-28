@@ -1,18 +1,34 @@
 {
   "Orbit": {
     "mode": 1,
-    "pe": 300,
-    "ap": 300,
-    "inc": 28.5
+    "pe": 175,
+    "ap": 175,
+    "inc": 56.5
+  },
+  "Simulator": {
+    "speed": 30,
+    "dtsim": 0.1,
+    "startLat" : 28.5,
+    "startLong" : -70,
+    "startGround" : 0,
+    "airVel" : 2400,
+    "airFpa" : 55,
+    "altitude" : 45,
+    "heading" : 45,
+    "historylength": 1000
+  },
+  "Guidance": {
+    "program":"ascent",
+    "dtguidance": 0.2
   },
   "StageList": [
     {
       "Id": 1,
-      "Mode": 1,
-      "GLim": 100,
+      "Mode": 2,
+      "GLim": 2,
       "MassTotal": 420e3,
       "MassDry": 70e3,
-      "Thrust": 2837e3,
+      "Thrust": 4837e3,
       "Isp": 452
     }
   ]
