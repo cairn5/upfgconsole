@@ -33,15 +33,22 @@ public class UPFGTarget : IGuidanceTarget
         pe = targetParams["pe"] * 1000 + Constants.Re;
         ap = targetParams["ap"] * 1000 + Constants.Re;
 
-
         ecc = (ap - pe) / (ap + pe);
 
-        radius = pe;
+        if (targetParams.ContainsKey("alt"))
+        {
+            radius = targetParams["alt"] * 1000 + Constants.Re;
+        }
+        else
+        {
+            radius = pe;
+        }
+            
         float sma = (pe + ap) / 2;
         float vpe = (float)Math.Pow(Constants.Mu * (2 / pe - 1 / sma), 0.5);
-        velocity = vpe;
+        velocity = (float)Math.Pow(Constants.Mu * (2/radius - 1/sma), 0.5);
         float srm = pe * vpe;
-        fpa = (float)Math.Acos(srm / srm);
+        fpa = (float)Math.Acos(srm / (velocity * radius));
 
         inc = targetParams["inc"];
         inc = (float)Utils.DegToRad(inc);
