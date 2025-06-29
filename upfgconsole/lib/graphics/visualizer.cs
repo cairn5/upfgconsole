@@ -285,6 +285,34 @@ public partial class Visualizer
         float xMin = 0f, xMax = 2000000f; // meters
         float yMin = 0f, yMax = 300000f;  // meters
         float vMin = 0f, vMax = 8000f;    // velocity in m/s (adjust as needed)
+        // --- Draw white grid for downrange/altitude graph ---
+        int numXGrid = 10, numYGrid = 6;
+        Matrix4 transform = Matrix4.CreateScale(graphScale) * Matrix4.CreateTranslation(graphTranslation);
+        GL.UseProgram(shaderProgram);
+        GL.BindVertexArray(overlayVao);
+        SetUniformColor(shaderProgram, 1f, 1f, 1f, 0.15f);
+        SetUniformMatrix(shaderProgram, "transform", transform);
+        GL.LineWidth(1.0f);
+        // Vertical grid lines
+        for (int i = 0; i <= numXGrid; i++)
+        {
+            float x = -1f + 2f * i / (float)numXGrid;
+            float[] gridLine = new float[] { x, -1f, 0f, x, 1f, 0f };
+            GL.BindBuffer(BufferTarget.ArrayBuffer, overlayVbo);
+            GL.BufferData(BufferTarget.ArrayBuffer, gridLine.Length * sizeof(float), gridLine, BufferUsageHint.DynamicDraw);
+            GL.DrawArrays(PrimitiveType.Lines, 0, 2);
+        }
+        // Horizontal grid lines
+        for (int i = 0; i <= numYGrid; i++)
+        {
+            float y = -1f + 2f * i / (float)numYGrid;
+            float[] gridLine = new float[] { -1f, y, 0f, 1f, y, 0f };
+            GL.BindBuffer(BufferTarget.ArrayBuffer, overlayVbo);
+            GL.BufferData(BufferTarget.ArrayBuffer, gridLine.Length * sizeof(float), gridLine, BufferUsageHint.DynamicDraw);
+            GL.DrawArrays(PrimitiveType.Lines, 0, 2);
+        }
+        GL.BindVertexArray(0);
+        GL.UseProgram(0);
         float[] trajData = new float[n * 3];
         float[] velData = new float[n * 3];
         for (int i = 0; i < n; i++)
@@ -311,7 +339,7 @@ public partial class Visualizer
         GL.BufferData(BufferTarget.ArrayBuffer, trajData.Length * sizeof(float), trajData, BufferUsageHint.DynamicDraw);
         GL.BindVertexArray(overlayVao);
         SetUniformColor(shaderProgram, 0.0f, 1.0f, 0.0f, 0.8f);
-        Matrix4 transform = Matrix4.CreateScale(graphScale) * Matrix4.CreateTranslation(graphTranslation);
+        transform = Matrix4.CreateScale(graphScale) * Matrix4.CreateTranslation(graphTranslation);
         SetUniformMatrix(shaderProgram, "transform", transform);
         GL.LineWidth(2.0f);
         GL.DrawArrays(PrimitiveType.LineStrip, 0, n);
@@ -327,6 +355,36 @@ public partial class Visualizer
         // --- Latitude vs Longitude Graph ---
         float latMin = -90f, latMax = 90f;
         float lonMin = -180f, lonMax = 180f;
+        // --- Draw white grid for lat/long graph ---
+        int numLonGrid = 12, numLatGrid = 6;
+        Vector3 latLongGraphScale = graphScale * 1f;
+        Vector3 latLongGraphTranslation = new Vector3(graphTranslation.X + graphScale.X + 0.2f, graphTranslation.Y, graphTranslation.Z);
+        Matrix4 latLongTransform = Matrix4.CreateScale(latLongGraphScale) * Matrix4.CreateTranslation(latLongGraphTranslation);
+        GL.UseProgram(shaderProgram);
+        GL.BindVertexArray(overlayVao);
+        SetUniformColor(shaderProgram, 1f, 1f, 1f, 0.15f);
+        SetUniformMatrix(shaderProgram, "transform", latLongTransform);
+        GL.LineWidth(1.0f);
+        // Vertical grid lines (longitude)
+        for (int i = 0; i <= numLonGrid; i++)
+        {
+            float x = -1f + 2f * i / (float)numLonGrid;
+            float[] gridLine = new float[] { x, -1f, 0f, x, 1f, 0f };
+            GL.BindBuffer(BufferTarget.ArrayBuffer, overlayVbo);
+            GL.BufferData(BufferTarget.ArrayBuffer, gridLine.Length * sizeof(float), gridLine, BufferUsageHint.DynamicDraw);
+            GL.DrawArrays(PrimitiveType.Lines, 0, 2);
+        }
+        // Horizontal grid lines (latitude)
+        for (int i = 0; i <= numLatGrid; i++)
+        {
+            float y = -1f + 2f * i / (float)numLatGrid;
+            float[] gridLine = new float[] { -1f, y, 0f, 1f, y, 0f };
+            GL.BindBuffer(BufferTarget.ArrayBuffer, overlayVbo);
+            GL.BufferData(BufferTarget.ArrayBuffer, gridLine.Length * sizeof(float), gridLine, BufferUsageHint.DynamicDraw);
+            GL.DrawArrays(PrimitiveType.Lines, 0, 2);
+        }
+        GL.BindVertexArray(0);
+        GL.UseProgram(0);
         float[] latLongData = new float[n * 3];
         for (int i = 0; i < n; i++)
         {
@@ -340,15 +398,11 @@ public partial class Visualizer
             latLongData[i * 3 + 1] = y_ndc;
             latLongData[i * 3 + 2] = 0f;
         }
-        // Place this graph to the right of the original
-        Vector3 latLongGraphScale = graphScale * 1f;
-        Vector3 latLongGraphTranslation = new Vector3(graphTranslation.X + graphScale.X + 0.2f, graphTranslation.Y, graphTranslation.Z);
         GL.UseProgram(shaderProgram);
         GL.BindBuffer(BufferTarget.ArrayBuffer, overlayVbo);
         GL.BufferData(BufferTarget.ArrayBuffer, latLongData.Length * sizeof(float), latLongData, BufferUsageHint.DynamicDraw);
         GL.BindVertexArray(overlayVao);
         SetUniformColor(shaderProgram, 0.0f, 1.0f, 0.0f, 0.8f);
-        Matrix4 latLongTransform = Matrix4.CreateScale(latLongGraphScale) * Matrix4.CreateTranslation(latLongGraphTranslation);
         SetUniformMatrix(shaderProgram, "transform", latLongTransform);
         GL.LineWidth(2.0f);
         GL.DrawArrays(PrimitiveType.LineStrip, 0, n);

@@ -10,7 +10,7 @@
             "request": "launch",
             "preLaunchTask": "dotnet build upfgconsole",
             "program": "${workspaceFolder}/upfgconsole/bin/Debug/net8.0/upfgconsole.dll",
-            "args": ["missions/saturnV.json"],
+            "args": ["missions/shuttle.json"],
             "cwd": "${workspaceFolder}/upfgconsole",
             "console": "integratedTerminal",
             "stopAtEntry": false

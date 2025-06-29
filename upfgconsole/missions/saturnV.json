@@ -15,7 +15,7 @@
     "airFpa" : 55,
     "altitude" : 45,
     "heading" : 90,
-    "historylength": 1000
+    "historylength": 700
   },
   "Guidance": {
     "program":"ascent",
