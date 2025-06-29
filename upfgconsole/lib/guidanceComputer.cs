@@ -7,6 +7,8 @@ using System.Numerics;
 using System.Reflection;
 using System.Security;
 using ScottPlot.LayoutEngines;
+using ConsoleTables;
+using System.Xml;
 
 public enum GuidanceMode
 {
@@ -30,16 +32,17 @@ public interface IGuidanceMode
 {
     bool Converged { get; }
     bool StagingFlag { get; set; }
+    // SimState? GuidanceHistory { get; set; }
     GuidanceMode? Step(Simulator sim, IGuidanceTarget tgt, Vehicle veh);
-    Vector3 GetSteering();
+    Vector3? GetSteering();
 }
 
 public class UpfgMode : IGuidanceMode
 {
-    private Upfg upfg = new Upfg();
+    public Upfg upfg = new Upfg();
     public bool Converged => upfg.ConvergenceFlag;
     public bool StagingFlag { get; set; } = false;
-    public Vector3 PrevSteering = new();
+    public Vector3? PrevSteering = new();
 
     public GuidanceMode? Step(Simulator sim, IGuidanceTarget tgt, Vehicle veh)
     {
@@ -52,18 +55,30 @@ public class UpfgMode : IGuidanceMode
                 StagingFlag = false;
             }
             upfg.step(sim, veh, upfgTarget);
-            Utils.PrintUPFG(upfg, sim);
-            Console.WriteLine(upfg.PrevVals.tgo);
 
             if (upfg.PrevVals.tgo < 5) return GuidanceMode.FinalBurn;
             else return null;
         }
         else return null;
     }
-    public Vector3 GetSteering()
+    public Vector3? GetSteering()
     {
         return upfg.Steering;
+    }
 
+    public string userOutput(Simulator sim)
+    {
+        
+        // Transposed table: each parameter is a row
+        var upfgTable = new ConsoleTable("PARAM", "VALUE");
+        upfgTable.AddRow("TB", upfg.PrevVals.tb.ToString("F1").PadLeft(6));
+        upfgTable.AddRow("TGO", upfg.PrevVals.tgo.ToString("F1").PadLeft(6));
+        upfgTable.AddRow("VGO", upfg.PrevVals.vgo.Length().ToString("F1").PadLeft(6));
+        upfgTable.AddRow("RGO", (upfg.PrevVals.rd - sim.State.r).Length().ToString("F1").PadLeft(6));
+        upfgTable.AddRow("RGRAV", upfg.PrevVals.rgrav.Length().ToString("F1").PadLeft(6));
+        upfgTable.AddRow("RBIAS", upfg.PrevVals.rbias.Length().ToString("F1").PadLeft(6));
+        return upfgTable.ToString();
+    
     }
 }
 
@@ -71,14 +86,28 @@ public class FinalMode : IGuidanceMode
 {
     public bool Converged => true;
     public bool StagingFlag { get; set; } = false;
-    public float BurnTime { get; set; } = 0f;
+    public float BurnTime { get; set; } = 5f;
+    public float InitialTime { get; set; } = -1f;
+    public Vector3 _PrevGuidance = Vector3.Zero;
+
     public GuidanceMode? Step(Simulator sim, IGuidanceTarget tgt, Vehicle veh)
     {
-        //InitialTime += sim
-        // Final burn logic here
-        return GuidanceMode.Idle; // After final burn, we can go to Idle or another mode
+        _PrevGuidance = sim.ThrustVector;
+
+        
+        if (InitialTime == -1)
+        {
+            InitialTime = sim.State.t;
+        }
+
+        if (sim.State.t > InitialTime + BurnTime)
+        {
+            return GuidanceMode.Idle;
+        }
+        else return null;
+
     }
-    public Vector3 GetSteering() => Vector3.Zero; // Assuming sim.ThrustVector is the final steering vector
+    public Vector3? GetSteering() => null; // Assuming sim.ThrustVector is the final steering vector
 }
 
 public class IdleMode : IGuidanceMode
@@ -89,7 +118,7 @@ public class IdleMode : IGuidanceMode
     {
         return null;
     }
-    public Vector3 GetSteering() => Vector3.Zero; // No steering in idle mode
+    public Vector3? GetSteering() => Vector3.Zero; // No steering in idle mode
 }
 
 public class PreLaunchMode : IGuidanceMode
@@ -101,7 +130,7 @@ public class PreLaunchMode : IGuidanceMode
         System.Threading.Thread.Sleep(100);
         return GuidanceMode.Ascent;
     }
-    public Vector3 GetSteering() => Vector3.Zero;
+    public Vector3? GetSteering() => Vector3.Zero;
 }
 
 public class GravityTurnMode : IGuidanceMode
@@ -127,22 +156,24 @@ public class GravityTurnMode : IGuidanceMode
         }
         return null;
     }
-    public Vector3 GetSteering() => gravityTurn.guidance;
+    public Vector3? GetSteering() => gravityTurn.guidance;
 }
 
 
 
 public class GuidanceProgram
 {
-    public Dictionary<GuidanceMode, IGuidanceMode> Modes { get; } = new();
-    public Dictionary<GuidanceMode, IGuidanceTarget> Targets { get; } = new();
+    public Dictionary<GuidanceMode, IGuidanceMode> Modes { get; set; } = new();
+    public Dictionary<GuidanceMode, IGuidanceTarget> Targets { get; set; } = new();
     public GuidanceMode ActiveMode { get; set; }
     public Vehicle Vehicle { get; set; }
     public Simulator Simulator { get; set; }
+    public Vector3? steering { get; set; }
     public bool StagingFlag { get; set; }
-    private int _lastStageCount;
+    protected int _lastStageCount;
+    public float dt { get; set; } = 1.0f;
 
-    public GuidanceProgram(Dictionary<GuidanceMode, IGuidanceTarget> targets, Vehicle veh, Simulator sim)
+    public GuidanceProgram(Dictionary<GuidanceMode, IGuidanceTarget> targets, Vehicle veh, Simulator sim, Mission mission)
     {
         Vehicle = veh;
         _lastStageCount = veh.Stages.Count();
@@ -166,10 +197,16 @@ public class GuidanceProgram
         // Reset after use
         this.StagingFlag = false;
 
-        if (nextMode.HasValue && Modes.ContainsKey(nextMode.Value))
+        Vector3? newsteering = mode.GetSteering();
+        if (newsteering != null)
         {
-            ActiveMode = nextMode.Value;
+            steering = newsteering;
         }
+
+        if (nextMode.HasValue && Modes.ContainsKey(nextMode.Value))
+            {
+                ActiveMode = nextMode.Value;
+            }
     }
 
     public void UpdateVehicle(Vehicle veh)
@@ -182,7 +219,28 @@ public class GuidanceProgram
         Vehicle = veh;
     }
 
-    public Vector3 GetCurrentSteering() => Modes[ActiveMode].GetSteering();
+    public Vector3 GetCurrentSteering()
+    {
+        return steering ?? Vector3.Zero;
+    }
 }
 
+public class AscentProgram : GuidanceProgram
+{
+    public AscentProgram(Dictionary<GuidanceMode, IGuidanceTarget> targets, Vehicle veh, Simulator sim, Mission mission)
+        : base(targets, veh, sim, mission)
+    {
+        dt = mission.Guidance.dt;
+        Vehicle = veh;
+        _lastStageCount = veh.Stages.Count();
+        Simulator = sim;
+        Modes[GuidanceMode.Prelaunch] = new PreLaunchMode();
+        Modes[GuidanceMode.Ascent] = new GravityTurnMode();
+        Modes[GuidanceMode.OrbitInsertion] = new UpfgMode();
+        Modes[GuidanceMode.FinalBurn] = new FinalMode();
+        Modes[GuidanceMode.Idle] = new IdleMode();
+        Targets = targets;
+        ActiveMode = GuidanceMode.Prelaunch;
+    }
+}
 

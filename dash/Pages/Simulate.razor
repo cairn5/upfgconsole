@@ -1,0 +1,138 @@
+﻿@page "/simulate"
+@using System.Numerics
+@using System.Text.Json
+@using Microsoft.AspNetCore.Components.Forms
+@using lib
+
+<h3>Run Simulation</h3>
+
+<InputFile OnChange="OnFileSelected" />
+
+<EditForm Model="@simParams" OnValidSubmit="RunSimulation">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="container">
+        <div class="row">
+            <div class="col-6">
+                <table class="table table-bordered w-auto">
+                    <tbody>
+                        <tr>
+                            <td class="fw-bold text-end">Periapsis (pe):</td>
+                            <td><InputNumber @bind-Value="simParams.Pe" class="form-control" @oninput="OnTableValueChanged" /></td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold text-end">Apoapsis (ap):</td>
+                            <td><InputNumber @bind-Value="simParams.Ap" class="form-control" @oninput="OnTableValueChanged" /></td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold text-end">Inclination (inc):</td>
+                            <td><InputNumber @bind-Value="simParams.Inc" class="form-control" @oninput="OnTableValueChanged" /></td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold text-end">Mode:</td>
+                            <td><InputNumber @bind-Value="simParams.Mode" class="form-control" @oninput="OnTableValueChanged" /></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="col-6">
+                <table class="table table-bordered w-auto">
+                    <tbody>
+                        <tr>
+                            <td class="fw-bold text-end">Sim Rate:</td>
+                            <td><InputNumber @bind-Value="simParams.Speed" class="form-control" @oninput="OnTableValueChanged" /></td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold text-end">dtsim:</td>
+                            <td><InputNumber @bind-Value="simParams.dtsim" class="form-control" @oninput="OnTableValueChanged" /></td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold text-end">dtguidance:</td>
+                            <td><InputNumber @bind-Value="simParams.dtguidance" class="form-control" @oninput="OnTableValueChanged" /></td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold text-end">Start Latitude:</td>
+                            <td><InputNumber @bind-Value="simParams.StartLat" class="form-control" @oninput="OnTableValueChanged" /></td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold text-end">Start Longitude:</td>
+                            <td><InputNumber @bind-Value="simParams.StartLong" class="form-control" @oninput="OnTableValueChanged" /></td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold text-end">Start Ground:(0/1)</td>
+                            <td><InputNumber @bind-Value="simParams.StartGround" class="form-control" @oninput="OnTableValueChanged" /></td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold text-end">Air Velocity:</td>
+                            <td><InputNumber @bind-Value="simParams.AirVel" class="form-control" @oninput="OnTableValueChanged" /></td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold text-end">Air FPA:</td>
+                            <td><InputNumber @bind-Value="simParams.AirFpa" class="form-control" @oninput="OnTableValueChanged" /></td>
+                        </tr>
+                        <tr>
+                            <td class="fw-bold text-end">Altitude:</td>
+                            <td><InputNumber @bind-Value="simParams.Altitude" class="form-control" @oninput="OnTableValueChanged" /></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <h5>Vehicle Stages</h5>
+    <button type="button" class="btn btn-success mb-2" @onclick="AddStage">Add Stage</button>
+    <div>
+        @foreach (var stage in simParams.Stages)
+        {
+            <div class="card mb-2">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col">
+                            <label>Id</label>
+                            <InputNumber @bind-Value="stage.Id" class="form-control" @oninput="OnTableValueChanged" />
+                        </div>
+                        <div class="col">
+                            <label>Mode</label>
+                            <InputNumber @bind-Value="stage.Mode" class="form-control" @oninput="OnTableValueChanged" />
+                        </div>
+                        <div class="col">
+                            <label>GLim</label>
+                            <InputNumber @bind-Value="stage.GLim" class="form-control" @oninput="OnTableValueChanged" />
+                        </div>
+                        <div class="col">
+                            <label>MassTotal</label>
+                            <InputNumber @bind-Value="stage.MassTotal" class="form-control" @oninput="OnTableValueChanged" />
+                        </div>
+                        <div class="col">
+                            <label>MassDry</label>
+                            <InputNumber @bind-Value="stage.MassDry" class="form-control" @oninput="OnTableValueChanged" />
+                        </div>
+                        <div class="col">
+                            <label>Thrust</label>
+                            <InputNumber @bind-Value="stage.Thrust" class="form-control" @oninput="OnTableValueChanged" />
+                        </div>
+                        <div class="col">
+                            <label>Isp</label>
+                            <InputNumber @bind-Value="stage.Isp" class="form-control" @oninput="OnTableValueChanged" />
+                        </div>
+                        <div class="col-auto d-flex align-items-end">
+                            <button type="button" class="btn btn-danger mb-2" @onclick="() => RemoveStage(stage)">Remove</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <button type="submit" class="btn btn-primary">Calculate Vehicle</button>
+    <button type="button" class="btn btn-secondary ms-2" @onclick="SaveToJson">Save to JSON</button>
+</EditForm>
+
+@if (result != null)
+{
+    <h4>Simulation Result</h4>
+
+    <!-- You can also show a chart here -->
+}

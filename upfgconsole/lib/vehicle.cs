@@ -13,6 +13,7 @@ using ScottPlot.LayoutEngines;
 using ScottPlot.Rendering.RenderActions;
 
 
+
 // public class Stage
 // {
 //     public int Id { get; set; }
@@ -50,11 +51,20 @@ public class Vehicle : ICloneable
         return vehicle;
     }
 
-    public static Vehicle FromStages(MissionConfig mission)
+    public static Vehicle FromStages(Mission mission)
     {
         return new Vehicle
         {
             Stages = mission.StageList
+        };
+    }
+
+
+    public static Vehicle FromStagesDash(List<Stage> stageList)
+    {
+        return new Vehicle
+        {
+            Stages = stageList
         };
     }
 

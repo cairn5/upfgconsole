@@ -1,4 +1,6 @@
 upfgconsole/bin/*
 upfgconsole.Tests/bin/*
+dash/bin/*
 upfgconsole/obj/*
 upfgconsole.Tests/obj/*
+dash/obj/*

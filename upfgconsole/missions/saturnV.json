@@ -1,9 +1,25 @@
 {
   "Orbit": {
     "mode": 1,
-    "pe": 300,
-    "ap": 300,
-    "inc": 45
+    "pe": 175,
+    "ap": 175,
+    "inc": 56.5
+  },
+  "Simulator": {
+    "speed": 30,
+    "dtsim": 0.1,
+    "startLat" : 28.5,
+    "startLong" : -70,
+    "startGround" : 1,
+    "airVel" : 2400,
+    "airFpa" : 55,
+    "altitude" : 45,
+    "heading" : 90,
+    "historylength": 700
+  },
+  "Guidance": {
+    "program":"ascent",
+    "dtguidance": 0.2
   },
   "StageList": [
     {
