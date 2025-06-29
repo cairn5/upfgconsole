@@ -126,11 +126,11 @@ public class Simulator
     private void UpdateStateHistory()
     {
 
-        History.Add((SimState)State.Clone());
+        History.Enqueue((SimState)State.Clone());
 
-        while( History.Count > historylen / dt)
+        while (History.Count > historylen / dt)
         {
-            History.RemoveAt(0);
+            History.Dequeue();
         }
 
         State.r = Iteration["r"];
