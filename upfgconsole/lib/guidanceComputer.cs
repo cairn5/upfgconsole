@@ -43,6 +43,7 @@ public class UpfgMode : IGuidanceMode
     public bool Converged => upfg.ConvergenceFlag;
     public bool StagingFlag { get; set; } = false;
     public Vector3? PrevSteering = new();
+    public int ModeKey = 1;
 
     public GuidanceMode? Step(Simulator sim, IGuidanceTarget tgt, Vehicle veh)
     {
@@ -54,7 +55,7 @@ public class UpfgMode : IGuidanceMode
                 upfg.StageEvent();
                 StagingFlag = false;
             }
-            upfg.step(sim, veh, upfgTarget);
+            upfg.step(sim, veh, upfgTarget, ModeKey);
 
             if (upfg.PrevVals.tgo < 5) return GuidanceMode.FinalBurn;
             else return null;
@@ -237,6 +238,7 @@ public class AscentProgram : GuidanceProgram
         Modes[GuidanceMode.Prelaunch] = new PreLaunchMode();
         Modes[GuidanceMode.Ascent] = new GravityTurnMode();
         Modes[GuidanceMode.OrbitInsertion] = new UpfgMode();
+        ((UpfgMode)Modes[GuidanceMode.OrbitInsertion]).ModeKey = 1;
         Modes[GuidanceMode.FinalBurn] = new FinalMode();
         Modes[GuidanceMode.Idle] = new IdleMode();
         Targets = targets;

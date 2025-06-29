@@ -4,6 +4,7 @@ using System.Data;
 using System.Dynamic;
 using System.Numerics;
 using System.Reflection;
+using System.Reflection.Metadata;
 using System.Runtime.InteropServices;
 using System.Security;
 using OpenTK.Platform.Windows;
@@ -23,10 +24,11 @@ public class UPFGState
     public double tgo { get; private set; }
     public Vector3 v { get; private set; }
     public Vector3 vgo { get; private set; }
+    public double K { get; private set; }
 
     public void SetVals(Dictionary<string, double> cserin,
                         Vector3 rbiasin, Vector3 rdin, Vector3 rgravin,
-                        double tbin, double timein, double tgoin, Vector3 vin, Vector3 vgoin)
+                        double tbin, double timein, double tgoin, Vector3 vin, Vector3 vgoin, double Kin)
     {
         Cser = cserin;
         rbias = rbiasin;
@@ -37,7 +39,8 @@ public class UPFGState
         tgo = tgoin;
         v = vin;
         vgo = vgoin;
-                                
+        K = Kin;
+
     }
 
 }
@@ -51,6 +54,7 @@ public class Upfg
     public bool StagingFlag { get; set; } = false;
     public Vector3 Steering { get; private set; } = new Vector3(0, 0, 0);
     public UPFGTarget? Target { get; private set; } = null;
+    public int mode { get; private set; }
 
     // public Upfg()
     // {
@@ -69,13 +73,14 @@ public class Upfg
         StagingFlag = true;
     }
 
-    public void step(Simulator sim, Vehicle vehicle, UPFGTarget target)
+    public void step(Simulator sim, Vehicle vehicle, UPFGTarget target, int modeNum)
     {
         if (!SetupFlag)
         {
             SetTarget(target);
             Setup(sim);
             SetupFlag = true;
+            mode = modeNum;
         }
         else
         {
@@ -101,7 +106,7 @@ public class Upfg
             {"D", 0 },
             {"E", 0 }
         };
-        PrevVals.SetVals(cser, new Vector3(0, 0, 0), desR, (float)0.5 * Utils.CalcGravVector(Constants.Mu, curR), sim.State.t, sim.State.t, 100, curV, tgoV);
+        PrevVals.SetVals(cser, new Vector3(0, 0, 0), desR, (float)0.5 * Utils.CalcGravVector(Constants.Mu, curR), sim.State.t, sim.State.t, 100, curV, tgoV, 1);
     }
 
     public void Run(Simulator sim, Vehicle vehicle)
@@ -124,6 +129,7 @@ public class Upfg
         double tp = PrevVals.time;
         Vector3 vprev = PrevVals.v;
         Vector3 vgo = PrevVals.vgo;
+        double K = PrevVals.K;
 
         if (StagingFlag)
         {
@@ -137,7 +143,8 @@ public class Upfg
         List<double> accelLimits, massFlows, exhaustVelocities, thrusts, thrustAccelerations, characteristicTimes, burnTimes;
         bool splitOccurred = InitializeStageParameters(vehicle, out stageModes, out accelLimits, out massFlows, out exhaustVelocities, out thrusts, out thrustAccelerations, out characteristicTimes, out burnTimes);
         // If a split occurred, the number of stages will have changed, so recursively re-run Run with the new vehicle
-        if (splitOccurred) {
+        if (splitOccurred)
+        {
             Run(sim, vehicle);
             return;
         }
@@ -168,17 +175,8 @@ public class Upfg
         List<double> tgoi;
         double L;
         double tgo;
-        // Console.WriteLine("Before ComputeBurnTimes:");
-        // for (int i = 0; i < stageModes.Count; i++)
-        // {
-        //     Console.WriteLine($"  Stage {i}: mode={stageModes[i]}, thrust={thrusts[i]}, accelLim={accelLimits[i]}, exVel={exhaustVelocities[i]}, thrustAccel={thrustAccelerations[i]}, charTime={characteristicTimes[i]}, burnTime={burnTimes[i]}");
-        // }
+
         ComputeBurnTimes(stageModes, thrusts, accelLimits, exhaustVelocities, thrustAccelerations, characteristicTimes, burnTimes, vgo, out Li, out L, out tgoi, out tgo);
-        // Console.WriteLine("After ComputeBurnTimes:");
-        // for (int i = 0; i < stageModes.Count; i++)
-        // {
-        //     Console.WriteLine($"  Stage {i}: burnTime={burnTimes[i]}, charTime={characteristicTimes[i]}");
-        // }
 
         //Check that we don't have too many stages
         if (L > vgo.Length())
@@ -214,18 +212,18 @@ public class Upfg
         Vector3 vgrav = vend - vc1;
 
         // 8 - Update target vectors
-        UpdateTargetVectors(r_, v_, tgo, rgrav, rthrust, iy, rdval, gamma, vdval, vgrav, vbias, out rd, out vgo);
+        UpdateTargetVectors(burnTimes, r_, v_, tgo, rgrav, rthrust, iy, rdval, gamma, vdval, vgrav, vbias, out rd, ref vgo, ref K);
 
         // Finalize
         double dt = t - tp;
-        CurrentVals.SetVals(cser, rbias, rd, rgrav, PrevVals.tb + dt, t, tgo, v_, vgo);
+        CurrentVals.SetVals(cser, rbias, rd, rgrav, PrevVals.tb + dt, t, tgo, v_, vgo, K);
         PrevVals = CurrentVals;
 
         //9 - Calculate thrust setting
         if (stageModes[0] == 2)
         {
-            double thrustSetting = accelLimits[0] / (thrusts[0] / m);
-            iF_ = (float)thrustSetting * iF_;
+            K = accelLimits[0] / (thrusts[0] / m);
+            iF_ = (float)K * iF_;
         }
 
         CheckConvergence();
@@ -234,7 +232,7 @@ public class Upfg
             Steering = sim.ThrustVector;
         }
         else Steering = iF_;
-        
+
     }
 
     private bool InitializeStageParameters(Vehicle vehicle, out List<int> stageModes, out List<double> accelLimits, out List<double> massFlows, out List<double> exhaustVelocities, out List<double> thrusts, out List<double> thrustAccelerations, out List<double> characteristicTimes, out List<double> burnTimes)
@@ -416,23 +414,68 @@ public class Upfg
         (rend, vend, cserOut) = OrbitalMechanics.CSEroutine(rc1, vc1, tgo, cser);
     }
 
-    private void UpdateTargetVectors(Vector3 r_, Vector3 v_, double tgo, Vector3 rgrav, Vector3 rthrust, Vector3 iy, double rdval, double gamma, double vdval, Vector3 vgrav, Vector3 vbias, out Vector3 rd, out Vector3 vgo)
+    private void UpdateTargetVectors(List<double> burnTimes, Vector3 r_, Vector3 v_, double tgo, Vector3 rgrav, Vector3 rthrust, Vector3 iy, double rdval, double gamma, double vdval, Vector3 vgrav, Vector3 vbias, out Vector3 rd, ref Vector3 vgo, ref double Kk)
     {
         Vector3 rp = r_ + v_ * (float)tgo + rgrav + rthrust;
-        rp -= Vector3.Dot(rp, iy) * iy;
-        rd = (float)rdval * rp / rp.Length();
-        Vector3 ix = Vector3.Normalize(rd);
-        Vector3 iz = Vector3.Cross(ix, iy);
-        Vector3 vv1 = new Vector3(ix.X, iy.X, iz.X);
-        Vector3 vv2 = new Vector3(ix.Y, iy.Y, iz.Y);
-        Vector3 vv3 = new Vector3(ix.Z, iy.Z, iz.Z);
-        Vector3 vop = new Vector3((float)Math.Sin(gamma), 0, (float)Math.Cos(gamma));
-        Vector3 vd = new Vector3(
-            Vector3.Dot(vv1, vop),
-            Vector3.Dot(vv2, vop),
-            Vector3.Dot(vv3, vop)
-        ) * (float)vdval;
+        Vector3 vd = Vector3.Zero;
+
+        if (mode == 1) //Standard Ascent
+        {
+            rp -= Vector3.Dot(rp, iy) * iy;
+            rd = (float)rdval * rp / rp.Length();
+            Vector3 ix = Vector3.Normalize(rd);
+            Vector3 iz = Vector3.Cross(ix, iy);
+            Vector3 vv1 = new Vector3(ix.X, iy.X, iz.X);
+            Vector3 vv2 = new Vector3(ix.Y, iy.Y, iz.Y);
+            Vector3 vv3 = new Vector3(ix.Z, iy.Z, iz.Z);
+            Vector3 vop = new Vector3((float)Math.Sin(gamma), 0, (float)Math.Cos(gamma));
+            vd = new Vector3(
+                Vector3.Dot(vv1, vop),
+                Vector3.Dot(vv2, vop),
+                Vector3.Dot(vv3, vop)
+            ) * (float)vdval;
+        }
+
+        if (mode == 2) //Reference Trajectory
+        {
+            rp -= Vector3.Dot(rp, iy) * iy;
+            Vector3 r_ref = (float)rdval * rp / rp.Length(); // hardcoded to now - expose to user?
+            Vector3 ix = Vector3.Normalize(r_ref);
+            Vector3 iz = Vector3.Cross(ix, iy);
+
+            Vector3 v_ref = (float)vdval * iz;
+            float t_ref = 500;
+
+            Dictionary<string, double> cser = new Dictionary<string, double>
+            {
+                {"dtcp", 0 },
+                {"xcp", 0 },
+                {"A", 0 },
+                {"D", 0 },
+                {"E", 0 }
+            };
+
+            (rd, vd, Dictionary<string, double> cserOut) = OrbitalMechanics.CSEroutine(r_ref, v_ref, tgo - t_ref, cser); //gives the error between actual and reference position at cutoff, which we want to drive to 0.
+
+
+            float drz = Vector3.Dot(iz, rd - rp);
+            float vgoz = Vector3.Dot(iz, vgo);
+            float dtgo = -2 * drz / vgoz;
+            Kk = (Kk * burnTimes[0]) / (burnTimes[0] + dtgo);
+
+            if (Kk > 1)
+            {
+                Kk = 1;
+            }
+            Console.WriteLine(Kk);
+        }
+        else
+        {
+            throw new InvalidOperationException("Unknown UPFG mode in UpdateTargetVectors.");
+        }
+
         vgo = vd - v_ - vgrav + vbias;
+
     }
 
     public void CheckConvergence()
@@ -444,6 +487,16 @@ public class Upfg
             // Console.WriteLine("UPFG CONVERGED");
         }
         ;
+    }
+
+}
+
+public class CustomUpfg : Upfg
+{
+    // Add custom properties or methods here as needed
+    public CustomUpfg() : base()
+    {
+        // Custom initialization if required
     }
 
 }
