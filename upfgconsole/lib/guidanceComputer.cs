@@ -221,7 +221,7 @@ public class GuidanceProgram
 
     public Vector3 GetCurrentSteering()
     {
-        return (Vector3)steering;
+        return steering ?? Vector3.Zero;
     }
 }
 
