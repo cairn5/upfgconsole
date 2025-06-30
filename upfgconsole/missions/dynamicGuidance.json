@@ -9,13 +9,13 @@
   "Simulator": {
     "speed": 30,
     "dtsim": 0.1,
-    "startLat" : 28.5,
-    "startLong" : -70,
-    "startGround" : 0,
-    "airVel" : 2400,
-    "airFpa" : 55,
-    "altitude" : 45,
-    "heading" : 40,
+    "startLat": 28.5,
+    "startLong": -70,
+    "startGround": 0,
+    "airVel": 2400,
+    "airFpa": 55,
+    "altitude": 45,
+    "heading": 40,
     "historylength": 400
   },
   "Guidance": {
@@ -61,9 +61,9 @@
       "Id": 1,
       "Mode": 1,
       "GLim": 3,
-      "MassTotal": 420e3,
-      "MassDry": 70e3,
-      "Thrust": 4837e3,
+      "MassTotal": 420000,
+      "MassDry": 70000,
+      "Thrust": 4837000,
       "Isp": 452
     }
   ]

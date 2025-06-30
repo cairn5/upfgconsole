@@ -18,8 +18,42 @@
     "historylength": 700
   },
   "Guidance": {
-    "program":"ascent",
-    "dtguidance": 0.8
+    "program": "dynamic",
+    "dtguidance": 0.8,
+    "programConfig": {
+      "sequence": ["Prelaunch", "Ascent", "OrbitInsertion", "FinalBurn", "Idle"],
+      "modes": {
+        "Prelaunch": {
+          "type": "PreLaunchMode",
+          "config": {
+            "Duration": 0.1
+          }
+        },
+        "Ascent": {
+          "type": "GravityTurnMode", 
+          "config": {
+            "AltitudeThreshold": 30000.0
+          }
+        },
+        "OrbitInsertion": {
+          "type": "UpfgMode",
+          "config": {
+            "ModeKey": 2,
+            "ConvergenceThreshold": 5.0
+          }
+        },
+        "FinalBurn": {
+          "type": "FinalMode",
+          "config": {
+            "BurnTime": 8.0
+          }
+        },
+        "Idle": {
+          "type": "IdleMode",
+          "config": {}
+        }
+      }
+    }
   },
   "StageList": [
     {

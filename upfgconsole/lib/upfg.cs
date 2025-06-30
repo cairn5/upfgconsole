@@ -94,7 +94,7 @@ public class Upfg
             throw new InvalidOperationException("UPFGTarget must be set before calling Setup.");
         Vector3 curR = sim.State.r;
         Vector3 curV = sim.State.v;
-        Vector3 unitvec = Utils.RodriguesRotation(curR, Target.normal, Utils.DegToRad(20));
+        Vector3 unitvec = Utils.RodriguesRotation(curR, Target.normal, Utils.DegToRad(15));
         Vector3 desR = unitvec / unitvec.Length() * Target.radius;
         Vector3 tempvec = Vector3.Cross(Target.normal, desR);
         Vector3 tgoV = Target.velocity * (tempvec / tempvec.Length()) - curV;
@@ -141,7 +141,7 @@ public class Upfg
         int n = vehicle.Stages.Count;
         List<int> stageModes;
         List<double> accelLimits, massFlows, exhaustVelocities, thrusts, thrustAccelerations, characteristicTimes, burnTimes;
-        bool splitOccurred = InitializeStageParameters(vehicle, out stageModes, out accelLimits, out massFlows, out exhaustVelocities, out thrusts, out thrustAccelerations, out characteristicTimes, out burnTimes);
+        bool splitOccurred = InitializeStageParameters(vehicle, K, out stageModes, out accelLimits, out massFlows, out exhaustVelocities, out thrusts, out thrustAccelerations, out characteristicTimes, out burnTimes);
         // If a split occurred, the number of stages will have changed, so recursively re-run Run with the new vehicle
         if (splitOccurred)
         {
@@ -212,7 +212,7 @@ public class Upfg
         Vector3 vgrav = vend - vc1;
 
         // 8 - Update target vectors
-        UpdateTargetVectors(burnTimes, r_, v_, tgo, rgrav, rthrust, iy, rdval, gamma, vdval, vgrav, vbias, out rd, ref vgo, ref K);
+        UpdateTargetVectors(burnTimes, r_, v_, tgo, t, rgrav, rthrust, iy, rdval, gamma, vdval, vgrav, vbias, ref rd, ref vgo, ref K, ref cser);
 
         // Finalize
         double dt = t - tp;
@@ -220,22 +220,18 @@ public class Upfg
         PrevVals = CurrentVals;
 
         //9 - Calculate thrust setting
-        if (stageModes[0] == 2)
+        if (stageModes[0] == 2 && (thrusts[0] / m) > accelLimits[0])
         {
             K = accelLimits[0] / (thrusts[0] / m);
-            iF_ = (float)K * iF_;
         }
+        Console.WriteLine(K);
 
-        CheckConvergence();
-        if (!ConvergenceFlag)
-        {
-            Steering = sim.ThrustVector;
-        }
-        else Steering = iF_;
+        iF_ = (float)K * iF_;
 
+        Steering = iF_;
     }
 
-    private bool InitializeStageParameters(Vehicle vehicle, out List<int> stageModes, out List<double> accelLimits, out List<double> massFlows, out List<double> exhaustVelocities, out List<double> thrusts, out List<double> thrustAccelerations, out List<double> characteristicTimes, out List<double> burnTimes)
+    private bool InitializeStageParameters(Vehicle vehicle, double K, out List<int> stageModes, out List<double> accelLimits, out List<double> massFlows, out List<double> exhaustVelocities, out List<double> thrusts, out List<double> thrustAccelerations, out List<double> characteristicTimes, out List<double> burnTimes)
     {
         int n = vehicle.Stages.Count;
         stageModes = new List<int>();
@@ -288,7 +284,7 @@ public class Upfg
             double massflow = stage.Thrust / (stage.Isp * Constants.g0);
             stageModes.Add(stage.Mode);
             accelLimits.Add(stage.GLim * Constants.g0);
-            thrusts.Add(stage.Thrust);
+            thrusts.Add(stage.Thrust* K) ;
             massFlows.Add(massflow);
             exhaustVelocities.Add(stage.Isp * Constants.g0);
             thrustAccelerations.Add(stage.Thrust / stage.MassTotal);
@@ -414,7 +410,7 @@ public class Upfg
         (rend, vend, cserOut) = OrbitalMechanics.CSEroutine(rc1, vc1, tgo, cser);
     }
 
-    private void UpdateTargetVectors(List<double> burnTimes, Vector3 r_, Vector3 v_, double tgo, Vector3 rgrav, Vector3 rthrust, Vector3 iy, double rdval, double gamma, double vdval, Vector3 vgrav, Vector3 vbias, out Vector3 rd, ref Vector3 vgo, ref double Kk)
+    private void UpdateTargetVectors(List<double> burnTimes, Vector3 r_, Vector3 v_, double tgo, double t, Vector3 rgrav, Vector3 rthrust, Vector3 iy, double rdval, double gamma, double vdval, Vector3 vgrav, Vector3 vbias, ref Vector3 rd, ref Vector3 vgo, ref double Kk, ref Dictionary<string, double>cser)
     {
         Vector3 rp = r_ + v_ * (float)tgo + rgrav + rthrust;
         Vector3 vd = Vector3.Zero;
@@ -434,28 +430,22 @@ public class Upfg
                 Vector3.Dot(vv2, vop),
                 Vector3.Dot(vv3, vop)
             ) * (float)vdval;
+
+            Kk = 1;
         }
 
-        if (mode == 2) //Reference Trajectory
+        else if (mode == 2) //Reference Trajectory
         {
-            rp -= Vector3.Dot(rp, iy) * iy;
-            Vector3 r_ref = (float)rdval * rp / rp.Length(); // hardcoded to now - expose to user?
+            // rp -= Vector3.Dot(rp, iy) * iy;
+            Vector3 r_ref = rd; // hardcoded to now - expose to user?
             Vector3 ix = Vector3.Normalize(r_ref);
             Vector3 iz = Vector3.Cross(ix, iy);
 
             Vector3 v_ref = (float)vdval * iz;
-            float t_ref = 500;
+            float t_ref = 450;
+          
 
-            Dictionary<string, double> cser = new Dictionary<string, double>
-            {
-                {"dtcp", 0 },
-                {"xcp", 0 },
-                {"A", 0 },
-                {"D", 0 },
-                {"E", 0 }
-            };
-
-            (rd, vd, Dictionary<string, double> cserOut) = OrbitalMechanics.CSEroutine(r_ref, v_ref, tgo - t_ref, cser); //gives the error between actual and reference position at cutoff, which we want to drive to 0.
+            (rd, vd, cser) = OrbitalMechanics.CSEroutine(r_ref, v_ref, t + tgo - t_ref, cser); //gives the error between actual and reference position at cutoff, which we want to drive to 0.
 
 
             float drz = Vector3.Dot(iz, rd - rp);
@@ -463,9 +453,15 @@ public class Upfg
             float dtgo = -2 * drz / vgoz;
             Kk = (Kk * burnTimes[0]) / (burnTimes[0] + dtgo);
 
+            rd = r_ref;
+
             if (Kk > 1)
             {
                 Kk = 1;
+            }
+            if (Kk < 0.01)
+            {
+                Kk = 0.01;
             }
             Console.WriteLine(Kk);
         }

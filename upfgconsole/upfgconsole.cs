@@ -151,17 +151,6 @@ class Handler
         {
             Console.WriteLine("Guidance task cancelled.");
         }
-
-        if (!guidanceFailed && !cancellationToken.IsCancellationRequested)
-        {
-            lock (simLock)
-            {
-                Utils.PlotTrajectory(sharedSim);
-                var kepler = sharedSim.State.Kepler;
-                Console.WriteLine(kepler["e"]);
-                Utils.PlotOrbit(kepler);
-            }
-        }
         
         simulationRunning = false;
     }

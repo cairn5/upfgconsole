@@ -66,7 +66,7 @@ public partial class Visualizer
 
     private static void DrawKeplerOrbit(int shaderProgram, int keplerVao, int keplerVbo, Simulator sim, Matrix4 view, Matrix4 projection)
     {
-        float[] keplerData = Utils.PlotOrbit(sim.State.Kepler);
+        float[] keplerData = Utils.GetKeplerPoints(sim.State.Kepler);
         if (keplerData.Length < 3) return;
         GL.UseProgram(shaderProgram);
         GL.BindBuffer(BufferTarget.ArrayBuffer, keplerVbo);

@@ -1,5 +1,7 @@
 using System.Text.Json;
 
+namespace lib;
+
 public class Stage : ICloneable
 {
     public int Id { get; set; }
@@ -19,8 +21,9 @@ public class Stage : ICloneable
 
 public class GuidanceConfig
 {
-    public string program { get; set; }
+    public string program { get; set; } = "";
     public float dt { get; set; }
+    public GuidanceProgramConfig? programConfig { get; set; }
 }
 
 public class Mission

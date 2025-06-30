@@ -251,7 +251,7 @@ public static class Utils
         return degrees;
     }
 
-    public static float[] PlotOrbit(Dictionary<string, double> elements)
+    public static float[] GetKeplerPoints(Dictionary<string, double> elements)
     {
         // double DegToRad(double degrees) => degrees * Math.PI / 180.0;
 
@@ -330,12 +330,6 @@ public static class Utils
             trajData[idx * 3 + 2] = (float)xp[idx];
 
         }
-
-        // Visualization: Placeholder - let me know if you want this as a WPF 3D or Unity project!
-        ScottPlot.Plot XYplot = new();
-        XYplot.Add.Scatter(xp, yp);
-        XYplot.Add.Scatter(xp, zp);
-        XYplot.SavePng("kepler.png", 400, 300);
 
         return trajData;
        
