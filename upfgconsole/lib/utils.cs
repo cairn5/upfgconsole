@@ -35,17 +35,6 @@ public static class Constants
 
 public static class Utils
 {
-    public static MissionConfig ReadMission(string filepath)
-    {
-
-        string json = File.ReadAllText(filepath);
-
-        MissionConfig config = JsonSerializer.Deserialize<MissionConfig>(json);
-
-        return config;
-
-    }
-
     public static double CalcLaunchAzimuthNonRotating(double inc, double lat)
     {
         double azimuth = Math.Asin(Math.Cos(Utils.DegToRad(inc) / Math.Cos(Utils.DegToRad(lat))));
@@ -152,8 +141,8 @@ public static class Utils
     public static Vector3 SphericalToCartesian(double latitude, double longitude, double r)
     {
 
-        latitude = DegToRad(latitude);
-        longitude = DegToRad(longitude);
+        latitude = latitude;
+        longitude = longitude;
 
         double rX = r * Math.Cos(latitude) * Math.Cos(longitude);
         double rY = r * Math.Cos(latitude) * Math.Sin(longitude);
@@ -262,7 +251,7 @@ public static class Utils
         return degrees;
     }
 
-    public static void PlotOrbit(Dictionary<string, double> elements)
+    public static float[] GetKeplerPoints(Dictionary<string, double> elements)
     {
         // double DegToRad(double degrees) => degrees * Math.PI / 180.0;
 
@@ -325,6 +314,8 @@ public static class Utils
         double[] yp = new double[numPoints];
         double[] zp = new double[numPoints];
 
+        float[] trajData = new float[numPoints * 3];
+
         for (int idx = 0; idx < numPoints; idx++)
         {
             double x = x_p[idx];
@@ -334,14 +325,14 @@ public static class Utils
             xp[idx] = orbit[0][idx] = R[0, 0] * x + R[0, 1] * y + R[0, 2] * z;
             yp[idx] = R[1, 0] * x + R[1, 1] * y + R[1, 2] * z;
             zp[idx] = R[2, 0] * x + R[2, 1] * y + R[2, 2] * z;
+            trajData[idx * 3] = (float)yp[idx];
+            trajData[idx * 3 + 1] = (float)zp[idx];
+            trajData[idx * 3 + 2] = (float)xp[idx];
+
         }
 
-        // Visualization: Placeholder - let me know if you want this as a WPF 3D or Unity project!
-        ScottPlot.Plot XYplot = new();
-        XYplot.Add.Scatter(xp, yp);
-        XYplot.Add.Scatter(xp, zp);
-        XYplot.SavePng("kepler.png", 400, 300);
-
+        return trajData;
+       
     }
 
     private static double[] Linspace(double start, double end, int num)
@@ -378,29 +369,27 @@ public static class Utils
         guidance.PrevVals.rbias.X, guidance.PrevVals.rbias.Y, guidance.PrevVals.rbias.Z);
     }
 
-    public static void PrintUPFG(Upfg guidance, Simulator sim)
+    public static string PrintUPFG(Upfg guidance, Simulator sim)
     {
 
-        Console.WriteLine("--------------------GUIDANCE PARAMETERS -------------------");
-        var upfgTable = new ConsoleTable("TB", "TGO", "VGO", "RGO", "RGRAV", "RBIAS");
-        upfgTable.AddRow(
-            guidance.PrevVals.tb.ToString("F1").PadLeft(6),
-            guidance.PrevVals.tgo.ToString("F1").PadLeft(6),
-            guidance.PrevVals.vgo.Length().ToString("F1").PadLeft(6),
-            (guidance.PrevVals.rd - sim.State.r).Length().ToString("F1").PadLeft(6),
-            guidance.PrevVals.rgrav.Length().ToString("F1").PadLeft(6),
-            guidance.PrevVals.rbias.Length().ToString("F1").PadLeft(6)
-        );
-        upfgTable.Write(Format.Alternative);
+        // Transposed table: each parameter is a row
+        var upfgTable = new ConsoleTable("PARAM", "VALUE");
+        upfgTable.AddRow("TB", guidance.PrevVals.tb.ToString("F1").PadLeft(6));
+        upfgTable.AddRow("TGO", guidance.PrevVals.tgo.ToString("F1").PadLeft(6));
+        upfgTable.AddRow("VGO", guidance.PrevVals.vgo.Length().ToString("F1").PadLeft(6));
+        upfgTable.AddRow("RGO", (guidance.PrevVals.rd - sim.State.r).Length().ToString("F1").PadLeft(6));
+        upfgTable.AddRow("RGRAV", guidance.PrevVals.rgrav.Length().ToString("F1").PadLeft(6));
+        upfgTable.AddRow("RBIAS", guidance.PrevVals.rbias.Length().ToString("F1").PadLeft(6));
+        return upfgTable.ToString();
     }
 
-    public static void PrintVars(Simulator sim, UPFGTarget tgt, Vehicle veh)
+    public static string PrintVars(Simulator sim, UPFGTarget tgt, Vehicle veh)
     {
 
-        
+
         Console.CursorVisible = false;
 
-        Console.WriteLine("-------- ORBITAL ELEMENTS --------");
+        // Console.WriteLine("-------- ORBITAL ELEMENTS --------");
         var transposedTable = new ConsoleTable(" ", "ACTUAL", "TARGET");
 
         // Add each orbital element as a row, with corresponding values from sim.State.Kepler and tgt
@@ -420,35 +409,37 @@ public static class Utils
             sim.State.Kepler["e"].ToString("F4").PadLeft(6),
             tgt.ecc.ToString("F4").PadLeft(6));
 
-        transposedTable.Write(Format.Alternative);
+        // transposedTable.Write(Format.Alternative);
 
-        Console.SetCursorPosition(40, 5);
-        Console.WriteLine("-----------");
-        Console.SetCursorPosition(40, 6);
-        Console.WriteLine("UPFG STATUS:");
+        // Console.SetCursorPosition(40, 5);
+        // Console.WriteLine("-----------");
+        // Console.SetCursorPosition(40, 6);
+        // Console.WriteLine("UPFG STATUS:");
 
-        Console.SetCursorPosition(40, 8);
-        if (false)
-        {
-            Console.WriteLine("CONVERGED");
-        }
-        else
-        {
-            Console.WriteLine("UPFG CONVERGING");
-        }
-        Console.SetCursorPosition(40, 9);
-        Console.WriteLine("-----------");
+        // Console.SetCursorPosition(40, 8);
+        // if (false)
+        // {
+        //     Console.WriteLine("CONVERGED");
+        // }
+        // else
+        // {
+        //     Console.WriteLine("UPFG CONVERGING");
+        // }
+        // Console.SetCursorPosition(40, 9);
+        // Console.WriteLine("-----------");
 
-        Console.SetCursorPosition(40, 11);
-        Console.WriteLine("VEHICLE STATUS:");
+        // Console.SetCursorPosition(40, 11);
+        // Console.WriteLine("VEHICLE STATUS:");
 
-        Console.SetCursorPosition(40, 13);
-        Console.WriteLine("VEL:    " + sim.State.v.Length().ToString("F1"));
-        Console.SetCursorPosition(40, 14);
-        Console.WriteLine("MASS:   " + sim.State.mass.ToString("F1"));
+        // Console.SetCursorPosition(40, 13);
+        // Console.WriteLine("VEL:    " + sim.State.v.Length().ToString("F1"));
+        // Console.SetCursorPosition(40, 14);
+        // Console.WriteLine("MASS:   " + sim.State.mass.ToString("F1"));
 
-        Console.SetCursorPosition(40, 15);
-        Console.WriteLine("STAGES: " + veh.Stages.Count().ToString());
+        // Console.SetCursorPosition(40, 15);
+        // Console.WriteLine("STAGES: " + veh.Stages.Count().ToString());
+
+        return transposedTable.ToString();
 
         // Console.WriteLine("----- ORBITAL ELEMENTS -----");
         // var orbitTable = new ConsoleTable("ap","pe", "INC", "LAN", "ECC");

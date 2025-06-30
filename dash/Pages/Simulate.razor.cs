@@ -29,12 +29,27 @@ namespace dash.Pages
                 }
                 catch { simParams = new SimParams(); }
             }
+
+            var resultJson = await JS.InvokeAsync<string>("simSettings.load", "simResult");
+            if (!string.IsNullOrEmpty(resultJson))
+            {
+                try
+                {
+                    result = JsonSerializer.Deserialize<SimResult>(resultJson);
+                }
+                catch { result = null; }
+            }
         }
 
         private async Task SaveSettingsAsync()
         {
             var json = JsonSerializer.Serialize(simParams);
             await JS.InvokeVoidAsync("simSettings.save", SettingsKey, json);
+            if (result != null)
+            {
+                var resultJson = JsonSerializer.Serialize(result);
+                await JS.InvokeVoidAsync("simSettings.save", "simResult", resultJson);
+            }
         }
 
         private async Task OnFileSelected(InputFileChangeEventArgs e)
@@ -103,43 +118,38 @@ namespace dash.Pages
             await SaveSettingsAsync();
         }
 
-        private async Task RunSimulation()
+        protected async Task RunSimulation()
         {
-            // Call your simulation logic here, e.g.:
-            // result = Simulator.Run(simParams);
-            // For now, just mock a result:
+            // Optionally clear previous result
+            result = null;
+
+            await Runner.RunSim(
+                simParams,
+                onGuidanceStep: (guidance) =>
+                {
+                    // This runs at each guidance step
+                    // You can collect guidance data, update UI, etc.
+                },
+                onSimStep: (sim) =>
+                {
+                    // This runs at each sim step
+                    // You can collect sim data, update UI, etc.
+                }
+            );
+
+            // Optionally, set result after simulation
             result = new SimResult();
-            result.FinalMass = 2;
-            result.FinalVelocity = 1;
             await SaveSettingsAsync();
         }
 
+        private async Task OnTableValueChanged(ChangeEventArgs e)
+        {
+            await SaveSettingsAsync();
+        }
 
     }
-
-    public class SimParams
-        {
-            public double TargetRadius { get; set; }
-            public double Pe { get; set; }
-            public double Ap { get; set; }
-            public double Inc { get; set; }
-            public int StageCount { get; set; }
-            public List<Stage> Stages { get; set; } = new();
-            public double Speed { get; set; }
-            public double dtsim { get; set; }
-            public double dtguidance { get; set; }
-            public double StartLat { get; set; }
-            public double StartLong { get; set; }
-            public double StartGround { get; set; }
-            public double AirVel { get; set; }
-            public double AirFpa { get; set; }
-            public double Altitude { get; set; }
-            public double Mode { get; set; }
-        }
-
-    public class SimResult
-        {
-            public double FinalMass { get; set; }
-            public double FinalVelocity { get; set; }
-        }
 }
+
+
+
+

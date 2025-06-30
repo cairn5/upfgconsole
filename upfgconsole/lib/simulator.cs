@@ -20,9 +20,11 @@ public class Simulator
     public SimState State { get; private set; }
     public Dictionary<string, Vector3> Iteration { get; private set; }
     public float dt { get; private set; }
+    public float dtguidance { get; set; }
     public double simspeed { get; private set; }
     public Vector3 ThrustVector { get; private set; }
     public List<SimState> History { get; set; }
+    public double historylen { get; set; }
 
 
     public Simulator()
@@ -35,7 +37,7 @@ public class Simulator
         State.CartToKepler();
 
         Iteration = new Dictionary<string, Vector3>();
-       
+
         ThrustVector = new Vector3(0, 0, 0);
         dt = 1;
 
@@ -126,10 +128,15 @@ public class Simulator
 
         History.Add((SimState)State.Clone());
 
+        while( History.Count > historylen / dt)
+        {
+            History.RemoveAt(0);
+        }
+
         State.r = Iteration["r"];
         State.v = Iteration["v"];
         State.t = State.t + dt;
-        State.mass = State.mass - dt * (float)(SimVehicle.CurrentStage.Thrust / (Constants.g0 * SimVehicle.CurrentStage.Isp));
+        State.mass = State.mass - (float)(dt * ThrustVector.Length() / (Constants.g0 * SimVehicle.CurrentStage.Isp));
 
         State.CartToKepler();
         State.CalcMiscParams();
@@ -156,9 +163,12 @@ public class Simulator
         double startGround = root.GetProperty("startGround").GetDouble();
         double airVel = root.GetProperty("airVel").GetDouble();
         double airFpa = root.GetProperty("airFpa").GetDouble();
-        float dtlocal = root.GetProperty("dt").GetSingle();
+        float dtlocal = root.GetProperty("dtsim").GetSingle();
         double simspeedlocal = root.GetProperty("speed").GetDouble();
         double altitude = root.GetProperty("altitude").GetSingle();
+        double headinglocal = root.GetProperty("heading").GetSingle();
+        double historylenLocal = root.GetProperty("historylength").GetDouble();
+
 
         // Set initial state using these values
         // Convert degrees to radians where needed
@@ -169,7 +179,7 @@ public class Simulator
         {
             double speed = airVel;
             double fpa = airFpa; // Flight path angle in degrees
-            double heading = 90; // Default east, can be parameterized
+            double heading = headinglocal; // Default east, can be parameterized
 
             var initial = new Dictionary<string, double>
             {
@@ -194,10 +204,8 @@ public class Simulator
         }
         SetTimeStep(dtlocal);
         this.simspeed = simspeedlocal;
+        historylen = historylenLocal;
     }
-        
-
-
 
 
 }

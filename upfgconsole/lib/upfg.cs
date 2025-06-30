@@ -4,8 +4,10 @@ using System.Data;
 using System.Dynamic;
 using System.Numerics;
 using System.Reflection;
+using System.Reflection.Metadata;
 using System.Runtime.InteropServices;
 using System.Security;
+using OpenTK.Platform.Windows;
 using ScottPlot.LayoutEngines;
 
 namespace lib;
@@ -22,10 +24,11 @@ public class UPFGState
     public double tgo { get; private set; }
     public Vector3 v { get; private set; }
     public Vector3 vgo { get; private set; }
+    public double K { get; private set; }
 
     public void SetVals(Dictionary<string, double> cserin,
                         Vector3 rbiasin, Vector3 rdin, Vector3 rgravin,
-                        double tbin, double timein, double tgoin, Vector3 vin, Vector3 vgoin)
+                        double tbin, double timein, double tgoin, Vector3 vin, Vector3 vgoin, double Kin)
     {
         Cser = cserin;
         rbias = rbiasin;
@@ -36,7 +39,8 @@ public class UPFGState
         tgo = tgoin;
         v = vin;
         vgo = vgoin;
-                                
+        K = Kin;
+
     }
 
 }
@@ -50,6 +54,7 @@ public class Upfg
     public bool StagingFlag { get; set; } = false;
     public Vector3 Steering { get; private set; } = new Vector3(0, 0, 0);
     public UPFGTarget? Target { get; private set; } = null;
+    public int mode { get; private set; }
 
     // public Upfg()
     // {
@@ -68,13 +73,14 @@ public class Upfg
         StagingFlag = true;
     }
 
-    public void step(Simulator sim, Vehicle vehicle, UPFGTarget target)
+    public void step(Simulator sim, Vehicle vehicle, UPFGTarget target, int modeNum)
     {
         if (!SetupFlag)
         {
             SetTarget(target);
             Setup(sim);
             SetupFlag = true;
+            mode = modeNum;
         }
         else
         {
@@ -88,7 +94,7 @@ public class Upfg
             throw new InvalidOperationException("UPFGTarget must be set before calling Setup.");
         Vector3 curR = sim.State.r;
         Vector3 curV = sim.State.v;
-        Vector3 unitvec = Utils.RodriguesRotation(curR, Target.normal, Utils.DegToRad(20));
+        Vector3 unitvec = Utils.RodriguesRotation(curR, Target.normal, Utils.DegToRad(15));
         Vector3 desR = unitvec / unitvec.Length() * Target.radius;
         Vector3 tempvec = Vector3.Cross(Target.normal, desR);
         Vector3 tgoV = Target.velocity * (tempvec / tempvec.Length()) - curV;
@@ -100,7 +106,7 @@ public class Upfg
             {"D", 0 },
             {"E", 0 }
         };
-        PrevVals.SetVals(cser, new Vector3(0, 0, 0), desR, (float)0.5 * Utils.CalcGravVector(Constants.Mu, curR), sim.State.t, sim.State.t, 100, curV, tgoV);
+        PrevVals.SetVals(cser, new Vector3(0, 0, 0), desR, (float)0.5 * Utils.CalcGravVector(Constants.Mu, curR), sim.State.t, sim.State.t, 100, curV, tgoV, 1);
     }
 
     public void Run(Simulator sim, Vehicle vehicle)
@@ -123,6 +129,7 @@ public class Upfg
         double tp = PrevVals.time;
         Vector3 vprev = PrevVals.v;
         Vector3 vgo = PrevVals.vgo;
+        double K = PrevVals.K;
 
         if (StagingFlag)
         {
@@ -134,7 +141,13 @@ public class Upfg
         int n = vehicle.Stages.Count;
         List<int> stageModes;
         List<double> accelLimits, massFlows, exhaustVelocities, thrusts, thrustAccelerations, characteristicTimes, burnTimes;
-        InitializeStageParameters(vehicle, out stageModes, out accelLimits, out massFlows, out exhaustVelocities, out thrusts, out thrustAccelerations, out characteristicTimes, out burnTimes);
+        bool splitOccurred = InitializeStageParameters(vehicle, K, out stageModes, out accelLimits, out massFlows, out exhaustVelocities, out thrusts, out thrustAccelerations, out characteristicTimes, out burnTimes);
+        // If a split occurred, the number of stages will have changed, so recursively re-run Run with the new vehicle
+        if (splitOccurred)
+        {
+            Run(sim, vehicle);
+            return;
+        }
 
         // 2 - Accelerations
         UpdateAccelerations(t, tp, v_, vprev, ref vgo, ref burnTimes);
@@ -142,8 +155,19 @@ public class Upfg
         // Update first stage parameters with current mass (critical fix)
         if (stageModes[0] == 1)
         {
-            thrustAccelerations[0] = thrusts[0] / m;
-            characteristicTimes[0] = exhaustVelocities[0] / thrustAccelerations[0];
+            // Only update if mass is above dry mass and thrustAccelerations[0] > 0
+            double minMass = vehicle.Stages[0].MassDry + 1e-6;
+            if (m > minMass && thrusts[0] > 0)
+            {
+                thrustAccelerations[0] = thrusts[0] / m;
+                if (thrustAccelerations[0] > 0)
+                {
+                    characteristicTimes[0] = exhaustVelocities[0] / thrustAccelerations[0];
+                    // Clamp characteristicTime to be slightly above burnTime
+                    if (characteristicTimes[0] <= burnTimes[0])
+                        characteristicTimes[0] = burnTimes[0] + 1e-3;
+                }
+            }
         }
 
         // 3 - Burn time calculation
@@ -151,6 +175,7 @@ public class Upfg
         List<double> tgoi;
         double L;
         double tgo;
+
         ComputeBurnTimes(stageModes, thrusts, accelLimits, exhaustVelocities, thrustAccelerations, characteristicTimes, burnTimes, vgo, out Li, out L, out tgoi, out tgo);
 
         //Check that we don't have too many stages
@@ -187,23 +212,26 @@ public class Upfg
         Vector3 vgrav = vend - vc1;
 
         // 8 - Update target vectors
-        UpdateTargetVectors(r_, v_, tgo, rgrav, rthrust, iy, rdval, gamma, vdval, vgrav, vbias, out rd, out vgo);
+        UpdateTargetVectors(burnTimes, r_, v_, tgo, t, rgrav, rthrust, iy, rdval, gamma, vdval, vgrav, vbias, ref rd, ref vgo, ref K, ref cser);
 
         // Finalize
         double dt = t - tp;
-        CurrentVals.SetVals(cser, rbias, rd, rgrav, PrevVals.tb + dt, t, tgo, v_, vgo);
+        CurrentVals.SetVals(cser, rbias, rd, rgrav, PrevVals.tb + dt, t, tgo, v_, vgo, K);
         PrevVals = CurrentVals;
 
-        CheckConvergence();
-        if (!ConvergenceFlag)
+        //9 - Calculate thrust setting
+        if (stageModes[0] == 2 && (thrusts[0] / m) > accelLimits[0])
         {
-            Steering = sim.ThrustVector;
+            K = accelLimits[0] / (thrusts[0] / m);
         }
-        else Steering = iF_;
-        
+        Console.WriteLine(K);
+
+        iF_ = (float)K * iF_;
+
+        Steering = iF_;
     }
 
-    private void InitializeStageParameters(Vehicle vehicle, out List<int> stageModes, out List<double> accelLimits, out List<double> massFlows, out List<double> exhaustVelocities, out List<double> thrusts, out List<double> thrustAccelerations, out List<double> characteristicTimes, out List<double> burnTimes)
+    private bool InitializeStageParameters(Vehicle vehicle, double K, out List<int> stageModes, out List<double> accelLimits, out List<double> massFlows, out List<double> exhaustVelocities, out List<double> thrusts, out List<double> thrustAccelerations, out List<double> characteristicTimes, out List<double> burnTimes)
     {
         int n = vehicle.Stages.Count;
         stageModes = new List<int>();
@@ -217,16 +245,54 @@ public class Upfg
         for (int i = 0; i < n; i++)
         {
             var stage = vehicle.Stages[i];
+
+            if (stage.Mode == 2 && stage.Thrust / stage.MassTotal < stage.GLim * Constants.g0)
+            {
+                //add another stage when accel = glim
+                double accel = stage.GLim * Constants.g0;
+                double massRequired = stage.Thrust / accel;
+                Stage newStage = new Stage
+                {
+                    Id = stage.Id + 1,
+                    Mode = 2, // Constant acceleration mode
+                    GLim = stage.GLim,
+                    MassTotal = massRequired,
+                    MassDry = stage.MassDry,
+                    Thrust = stage.Thrust,
+                    Isp = stage.Isp
+                };
+                Stage oldStage = new Stage
+                {
+                    Id = stage.Id,
+                    Mode = 1, // Constant thrust mode
+                    GLim = stage.GLim,
+                    MassTotal = stage.MassTotal,
+                    MassDry = massRequired,
+                    Thrust = stage.Thrust,
+                    Isp = stage.Isp
+                };
+
+                vehicle.Stages[i] = oldStage;
+                vehicle.Stages.Insert(i + 1, newStage);
+                Console.WriteLine($"Stage {stage.Id} split into two stages: {oldStage.Id} (constant thrust) and {newStage.Id} (constant acceleration).");
+                // Console.WriteLine($"  OldStage: MassTotal={oldStage.MassTotal}, MassDry={oldStage.MassDry}, Thrust={oldStage.Thrust}, Isp={oldStage.Isp}, GLim={oldStage.GLim}");
+                // Console.WriteLine($"  NewStage: MassTotal={newStage.MassTotal}, MassDry={newStage.MassDry}, Thrust={newStage.Thrust}, Isp={newStage.Isp}, GLim={newStage.GLim}");
+                // Return true to indicate a split occurred and prevent further processing
+                return true;
+            }
+
             double massflow = stage.Thrust / (stage.Isp * Constants.g0);
             stageModes.Add(stage.Mode);
             accelLimits.Add(stage.GLim * Constants.g0);
-            thrusts.Add(stage.Thrust);
+            thrusts.Add(stage.Thrust* K) ;
             massFlows.Add(massflow);
             exhaustVelocities.Add(stage.Isp * Constants.g0);
             thrustAccelerations.Add(stage.Thrust / stage.MassTotal);
             characteristicTimes.Add(exhaustVelocities[i] / thrustAccelerations[i]);
             burnTimes.Add((stage.MassTotal - stage.MassDry) / massflow);
+            // Console.WriteLine($"Stage {stage.Id}: Mode={stage.Mode}, MassTotal={stage.MassTotal}, MassDry={stage.MassDry}, Thrust={stage.Thrust}, Isp={stage.Isp}, GLim={stage.GLim}, massflow={massflow}, accel={stage.Thrust / stage.MassTotal}, charTime={exhaustVelocities[i] / thrustAccelerations[i]}, burnTime={(stage.MassTotal - stage.MassDry) / massflow}");
         }
+        return false;
     }
 
     private void UpdateAccelerations(double t, double tp, Vector3 v_, Vector3 vprev, ref Vector3 vgo, ref List<double> burnTimes)
@@ -245,7 +311,13 @@ public class Upfg
         for (int i = 0; i < n - 1; i++)
         {
             if (stageModes[i] == 1)
-                Li.Add(exhaustVelocities[i] * Math.Log(characteristicTimes[i] / (characteristicTimes[i] - burnTimes[i])));
+            {
+                // Clamp denominator to avoid log of zero or negative
+                double denom = Math.Max(characteristicTimes[i] - burnTimes[i], 1e-6);
+                double ratio = characteristicTimes[i] / denom;
+                if (ratio <= 0) ratio = 1e-6;
+                Li.Add(exhaustVelocities[i] * Math.Log(ratio));
+            }
             else if (stageModes[i] == 2)
                 Li.Add(accelLimits[i] * burnTimes[i]);
             L += Li[i];
@@ -255,9 +327,13 @@ public class Upfg
         tgoi = new List<double>();
         for (int i = 0; i < n; i++)
         {
-            if (stageModes[i] == 1)  // Fixed: was stageModes[0], now uses stageModes[i]
-                burnTimes[i] = characteristicTimes[i] * (1 - Math.Exp(-Li[i] / exhaustVelocities[i]));
-            else if (stageModes[i] == 2)  // Fixed: was stageModes[0], now uses stageModes[i]
+            if (stageModes[i] == 1)
+            {
+                // Clamp denominator to avoid division by zero
+                double exvel = Math.Max(exhaustVelocities[i], 1e-6);
+                burnTimes[i] = characteristicTimes[i] * (1 - Math.Exp(-Li[i] / exvel));
+            }
+            else if (stageModes[i] == 2)
                 burnTimes[i] = Li[i] / accelLimits[i];
             if (i == 0)
                 tgoi.Add(burnTimes[i]);
@@ -334,23 +410,68 @@ public class Upfg
         (rend, vend, cserOut) = OrbitalMechanics.CSEroutine(rc1, vc1, tgo, cser);
     }
 
-    private void UpdateTargetVectors(Vector3 r_, Vector3 v_, double tgo, Vector3 rgrav, Vector3 rthrust, Vector3 iy, double rdval, double gamma, double vdval, Vector3 vgrav, Vector3 vbias, out Vector3 rd, out Vector3 vgo)
+    private void UpdateTargetVectors(List<double> burnTimes, Vector3 r_, Vector3 v_, double tgo, double t, Vector3 rgrav, Vector3 rthrust, Vector3 iy, double rdval, double gamma, double vdval, Vector3 vgrav, Vector3 vbias, ref Vector3 rd, ref Vector3 vgo, ref double Kk, ref Dictionary<string, double>cser)
     {
         Vector3 rp = r_ + v_ * (float)tgo + rgrav + rthrust;
-        rp -= Vector3.Dot(rp, iy) * iy;
-        rd = (float)rdval * rp / rp.Length();
-        Vector3 ix = Vector3.Normalize(rd);
-        Vector3 iz = Vector3.Cross(ix, iy);
-        Vector3 vv1 = new Vector3(ix.X, iy.X, iz.X);
-        Vector3 vv2 = new Vector3(ix.Y, iy.Y, iz.Y);
-        Vector3 vv3 = new Vector3(ix.Z, iy.Z, iz.Z);
-        Vector3 vop = new Vector3((float)Math.Sin(gamma), 0, (float)Math.Cos(gamma));
-        Vector3 vd = new Vector3(
-            Vector3.Dot(vv1, vop),
-            Vector3.Dot(vv2, vop),
-            Vector3.Dot(vv3, vop)
-        ) * (float)vdval;
+        Vector3 vd = Vector3.Zero;
+
+        if (mode == 1) //Standard Ascent
+        {
+            rp -= Vector3.Dot(rp, iy) * iy;
+            rd = (float)rdval * rp / rp.Length();
+            Vector3 ix = Vector3.Normalize(rd);
+            Vector3 iz = Vector3.Cross(ix, iy);
+            Vector3 vv1 = new Vector3(ix.X, iy.X, iz.X);
+            Vector3 vv2 = new Vector3(ix.Y, iy.Y, iz.Y);
+            Vector3 vv3 = new Vector3(ix.Z, iy.Z, iz.Z);
+            Vector3 vop = new Vector3((float)Math.Sin(gamma), 0, (float)Math.Cos(gamma));
+            vd = new Vector3(
+                Vector3.Dot(vv1, vop),
+                Vector3.Dot(vv2, vop),
+                Vector3.Dot(vv3, vop)
+            ) * (float)vdval;
+
+            Kk = 1;
+        }
+
+        else if (mode == 2) //Reference Trajectory
+        {
+            // rp -= Vector3.Dot(rp, iy) * iy;
+            Vector3 r_ref = rd; // hardcoded to now - expose to user?
+            Vector3 ix = Vector3.Normalize(r_ref);
+            Vector3 iz = Vector3.Cross(ix, iy);
+
+            Vector3 v_ref = (float)vdval * iz;
+            float t_ref = 450;
+          
+
+            (rd, vd, cser) = OrbitalMechanics.CSEroutine(r_ref, v_ref, t + tgo - t_ref, cser); //gives the error between actual and reference position at cutoff, which we want to drive to 0.
+
+
+            float drz = Vector3.Dot(iz, rd - rp);
+            float vgoz = Vector3.Dot(iz, vgo);
+            float dtgo = -2 * drz / vgoz;
+            Kk = (Kk * burnTimes[0]) / (burnTimes[0] + dtgo);
+
+            rd = r_ref;
+
+            if (Kk > 1)
+            {
+                Kk = 1;
+            }
+            if (Kk < 0.01)
+            {
+                Kk = 0.01;
+            }
+            Console.WriteLine(Kk);
+        }
+        else
+        {
+            throw new InvalidOperationException("Unknown UPFG mode in UpdateTargetVectors.");
+        }
+
         vgo = vd - v_ - vgrav + vbias;
+
     }
 
     public void CheckConvergence()
@@ -362,6 +483,16 @@ public class Upfg
             // Console.WriteLine("UPFG CONVERGED");
         }
         ;
+    }
+
+}
+
+public class CustomUpfg : Upfg
+{
+    // Add custom properties or methods here as needed
+    public CustomUpfg() : base()
+    {
+        // Custom initialization if required
     }
 
 }

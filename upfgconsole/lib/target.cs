@@ -12,8 +12,9 @@ using System.Security;
 using ScottPlot.LayoutEngines;
 using ScottPlot.Rendering.RenderActions;
 using System.Diagnostics.Tracing;
+using ConsoleTables;
 
-public class UPFGTarget: IGuidanceTarget
+public class UPFGTarget : IGuidanceTarget
 {
     public float radius { get; private set; } = 0;
     public float velocity { get; private set; } = 0;
@@ -32,15 +33,22 @@ public class UPFGTarget: IGuidanceTarget
         pe = targetParams["pe"] * 1000 + Constants.Re;
         ap = targetParams["ap"] * 1000 + Constants.Re;
 
-
         ecc = (ap - pe) / (ap + pe);
 
-        radius = pe;
+        if (targetParams.ContainsKey("alt"))
+        {
+            radius = targetParams["alt"] * 1000 + Constants.Re;
+        }
+        else
+        {
+            radius = pe;
+        }
+            
         float sma = (pe + ap) / 2;
         float vpe = (float)Math.Pow(Constants.Mu * (2 / pe - 1 / sma), 0.5);
-        velocity = vpe;
+        velocity = (float)Math.Pow(Constants.Mu * (2/radius - 1/sma), 0.5);
         float srm = pe * vpe;
-        fpa = (float)Math.Acos(srm / srm);
+        fpa = (float)Math.Acos(srm / (velocity * radius));
 
         inc = targetParams["inc"];
         inc = (float)Utils.DegToRad(inc);
@@ -63,6 +71,34 @@ public class UPFGTarget: IGuidanceTarget
         }
 
         normal = Utils.CalcOrbitNormal(inc, LAN);
+
+    }
+
+    public string userOutput(Simulator sim)
+    {
+        Console.CursorVisible = false;
+
+        // Console.WriteLine("-------- ORBITAL ELEMENTS --------");
+        var transposedTable = new ConsoleTable(" ", "ACTUAL", "TARGET");
+
+        // Add each orbital element as a row, with corresponding values from sim.State.Kepler and tgt
+        transposedTable.AddRow("AP",
+            sim.State.Kepler["ap"].ToString("F1").PadLeft(6),
+            ap.ToString("F1").PadLeft(6))
+        .AddRow("PE",
+            sim.State.Kepler["pe"].ToString("F1").PadLeft(6),
+            pe.ToString("F1").PadLeft(6))
+        .AddRow("INC",
+            sim.State.Kepler["i"].ToString("F2").PadLeft(6),
+            Utils.RadToDeg(inc).ToString("F2").PadLeft(6))
+        .AddRow("LAN",
+            sim.State.Kepler["LAN"].ToString("F2").PadLeft(6),
+            Utils.RadToDeg(LAN).ToString("F2").PadLeft(6))
+        .AddRow("ECC",
+            sim.State.Kepler["e"].ToString("F4").PadLeft(6),
+            ecc.ToString("F4").PadLeft(6));
+
+        return transposedTable.ToString();
 
     }
 
