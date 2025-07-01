@@ -8,10 +8,10 @@
             "name": ".NET Launch (console with args)",
             "type": "coreclr",
             "request": "launch",
-            "preLaunchTask": "dotnet build upfgconsole",
-            "program": "${workspaceFolder}/upfgconsole/bin/Debug/net8.0/upfgconsole.dll",
+            "preLaunchTask": "dotnet build navbox",
+            "program": "${workspaceFolder}/navbox/bin/Debug/net8.0/navbox.dll",
             "args": ["missions/shuttle.json"],
-            "cwd": "${workspaceFolder}/upfgconsole",
+            "cwd": "${workspaceFolder}/navbox",
             "console": "integratedTerminal",
             "stopAtEntry": false
         }

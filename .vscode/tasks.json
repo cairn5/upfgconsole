@@ -3,8 +3,8 @@
 	"tasks": [
 		{
 			"type": "shell",
-			"label": "dotnet build upfgconsole",
-			"command": "dotnet build upfgconsole/upfgconsole.csproj",
+			"label": "dotnet build navbox",
+			"command": "dotnet build navbox/navbox.csproj",
 			"group": "build"
 		}
 	]

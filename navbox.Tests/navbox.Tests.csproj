@@ -23,7 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\upfgconsole\upfgconsole.csproj" />
+    <ProjectReference Include="..\navbox\navbox.csproj" />
   </ItemGroup>
 
 </Project>

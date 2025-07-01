@@ -1,6 +1,6 @@
-upfgconsole/bin/*
-upfgconsole.Tests/bin/*
+navbox/bin/*
+navbox.Tests/bin/*
 dash/bin/*
-upfgconsole/obj/*
-upfgconsole.Tests/obj/*
+navbox/obj/*
+navbox.Tests/obj/*
 dash/obj/*
