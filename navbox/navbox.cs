@@ -78,12 +78,12 @@ class Handler
         {
             { GuidanceMode.Prelaunch, tgt },
             { GuidanceMode.Ascent, tgt },
-            { GuidanceMode.OrbitInsertion, tgt },
+            { GuidanceMode.OrbitInsertion, tgt},
             { GuidanceMode.FinalBurn, tgt},
             { GuidanceMode.Idle, tgt}
         };
         
-        sharedGuidance = new AscentProgram(targets, veh, sharedSim, mission);
+        sharedGuidance = new GuidanceProgram(targets, veh, sharedSim, mission);
     }
 
     private static async Task StartSimulationAsync(CancellationToken cancellationToken)

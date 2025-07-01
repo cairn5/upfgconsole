@@ -29,7 +29,7 @@ public interface IGuidanceMode
     bool Converged { get; }
     bool StagingFlag { get; set; }
     void Initialize(GuidanceModeConfig config);
-    GuidanceMode? Step(Simulator sim, IGuidanceTarget? tgt, Vehicle veh);
+    GuidanceMode? Step(Simulator sim, IGuidanceTarget? tgt, Vehicle veh, GuidanceProgram? program = null);
     Vector3? GetSteering();
 }
 
@@ -50,7 +50,7 @@ public class UpfgMode : IGuidanceMode
         }
     }
 
-    public GuidanceMode? Step(Simulator sim, IGuidanceTarget? tgt, Vehicle veh)
+    public GuidanceMode? Step(Simulator sim, IGuidanceTarget? tgt, Vehicle veh, GuidanceProgram? program = null)
     {
         if (tgt is UPFGTarget upfgTarget)
         {
@@ -105,7 +105,7 @@ public class FinalMode : IGuidanceMode
         }
     }
 
-    public GuidanceMode? Step(Simulator sim, IGuidanceTarget? tgt, Vehicle veh)
+    public GuidanceMode? Step(Simulator sim, IGuidanceTarget? tgt, Vehicle veh, GuidanceProgram? program = null)
     {
         _prevGuidance = sim.ThrustVector;
 
@@ -131,7 +131,7 @@ public class IdleMode : IGuidanceMode
     
     public void Initialize(GuidanceModeConfig config) { }
     
-    public GuidanceMode? Step(Simulator sim, IGuidanceTarget? tgt, Vehicle veh)
+    public GuidanceMode? Step(Simulator sim, IGuidanceTarget? tgt, Vehicle veh, GuidanceProgram? program = null)
     {
         return null;
     }
@@ -154,7 +154,7 @@ public class PreLaunchMode : IGuidanceMode
         }
     }
     
-    public GuidanceMode? Step(Simulator sim, IGuidanceTarget? tgt, Vehicle veh)
+    public GuidanceMode? Step(Simulator sim, IGuidanceTarget? tgt, Vehicle veh, GuidanceProgram? program = null)
     {
         _startTime ??= sim.State.t;
         
@@ -190,17 +190,18 @@ public class GravityTurnMode : IGuidanceMode
         // For now, nothing to do
     }
     
-    public GuidanceMode? Step(Simulator sim, IGuidanceTarget? tgt, Vehicle veh)
+    public GuidanceMode? Step(Simulator sim, IGuidanceTarget? tgt, Vehicle veh, GuidanceProgram? program = null)
     {
         if (tgt is UPFGTarget upfgTarget)
             _gravityTurn.step(sim, upfgTarget);
         else
             throw new ArgumentException("GravityTurnMode requires a UPFGTarget as its target.");
             
-        // TODO: Add convergence logic and return next mode if needed
+        // Check if altitude threshold is reached
         if (sim.State.Misc.TryGetValue("altitude", out var altitude) && altitude > _config.AltitudeThreshold)
         {
-            return GuidanceMode.OrbitInsertion; //advance to next mode if altitude is above threshold
+            // Try to get next mode from sequence, fallback to OrbitInsertion if no sequence
+            return program?.GetNextModeInSequence(GuidanceMode.Ascent) ?? GuidanceMode.OrbitInsertion;
         }
         return null;
     }
@@ -221,6 +222,7 @@ public class GuidanceProgram
     public bool StagingFlag { get; set; }
     protected int _lastStageCount;
     public float Dt { get; set; } = 1.0f;
+    private List<GuidanceMode>? _modeSequence;
 
     public GuidanceProgram(Dictionary<GuidanceMode, IGuidanceTarget> targets, Vehicle veh, Simulator sim, Mission mission)
     {
@@ -239,7 +241,16 @@ public class GuidanceProgram
     {
         if (mission.Guidance.programConfig?.modes != null)
         {
-            // Build from dynamic configuration
+            // Store the sequence for navigation
+            if (mission.Guidance.programConfig.sequence != null)
+            {
+                _modeSequence = mission.Guidance.programConfig.sequence
+                    .Where(s => Enum.TryParse<GuidanceMode>(s, out _))
+                    .Select(s => Enum.Parse<GuidanceMode>(s))
+                    .ToList();
+            }
+
+            // Build ONLY from dynamic configuration - no defaults
             foreach (var modeConfig in mission.Guidance.programConfig.modes)
             {
                 if (Enum.TryParse<GuidanceMode>(modeConfig.Key, out var guidanceMode))
@@ -259,7 +270,7 @@ public class GuidanceProgram
         }
         else
         {
-            // Fallback to default modes
+            // Only fallback to defaults if NO programConfig exists
             BuildDefaultModes();
         }
     }
@@ -286,7 +297,7 @@ public class GuidanceProgram
         var tgt = Targets.ContainsKey(ActiveMode) ? Targets[ActiveMode] : null;
         // Propagate staging flag to the mode
         mode.StagingFlag = this.StagingFlag;
-        var nextMode = mode.Step(Simulator, tgt, Vehicle);
+        var nextMode = mode.Step(Simulator, tgt, Vehicle, this);
         // Reset after use
         this.StagingFlag = false;
 
@@ -315,6 +326,18 @@ public class GuidanceProgram
     public Vector3 GetCurrentSteering()
     {
         return Steering ?? Vector3.Zero;
+    }
+
+    public GuidanceMode? GetNextModeInSequence(GuidanceMode currentMode)
+    {
+        if (_modeSequence == null) return null;
+        
+        var currentIndex = _modeSequence.IndexOf(currentMode);
+        if (currentIndex >= 0 && currentIndex < _modeSequence.Count - 1)
+        {
+            return _modeSequence[currentIndex + 1];
+        }
+        return null;
     }
 }
 
