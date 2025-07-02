@@ -62,7 +62,7 @@ public class UpfgMode : IGuidanceMode
             }
             _upfg.step(sim, veh, upfgTarget, _config.ModeKey);
 
-            if (_upfg.PrevVals.tgo < _config.ConvergenceThreshold) 
+            if (_upfg.PrevVals.tgo < _config.CutoffTime) 
                 return GuidanceMode.FinalBurn;
             return null;
         }
@@ -193,7 +193,7 @@ public class GravityTurnMode : IGuidanceMode
     public GuidanceMode? Step(Simulator sim, IGuidanceTarget? tgt, Vehicle veh, GuidanceProgram? program = null)
     {
         if (tgt is UPFGTarget upfgTarget)
-            _gravityTurn.step(sim, upfgTarget);
+            _gravityTurn.step(sim, upfgTarget, _config);
         else
             throw new ArgumentException("GravityTurnMode requires a UPFGTarget as its target.");
             
@@ -377,12 +377,14 @@ public class PreLaunchModeConfig : GuidanceModeConfig
 public class GravityTurnModeConfig : GuidanceModeConfig
 {
     public float AltitudeThreshold { get; set; } = 30000f;
+    public float PitchAngle { get; set; } = 2.5f;
+    public float PitchTime { get; set; } = 13;
 }
 
 public class UpfgModeConfig : GuidanceModeConfig
 {
     public int ModeKey { get; set; } = 1;
-    public float ConvergenceThreshold { get; set; } = 5.0f;
+    public float CutoffTime { get; set; } = 5.0f;
 }
 
 public class FinalModeConfig : GuidanceModeConfig

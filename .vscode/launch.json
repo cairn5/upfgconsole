@@ -10,7 +10,7 @@
             "request": "launch",
             "preLaunchTask": "dotnet build navbox",
             "program": "${workspaceFolder}/navbox/bin/Debug/net8.0/navbox.dll",
-            "args": ["missions/shuttle.json"],
+            "args": ["missions/saturnV.json"],
             "cwd": "${workspaceFolder}/navbox",
             "console": "integratedTerminal",
             "stopAtEntry": false

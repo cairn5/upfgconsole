@@ -11,22 +11,24 @@ namespace lib;
 
 public class GravityTurn
 {
-    public double pitchAngle { get; set; } = Utils.DegToRad(4.5f);
-    public double pitchTime { get; set; } = 19.0f;
+    public double pitchAngle { get; set; } = Utils.DegToRad(5f);
+    public double pitchTime { get; set; } = 100;
     public double heading { get; set; } = -1;
     public int guidanceMode { get; set; } = 0; // 0 = straight up, 1 = initial pitchover, 2 = following ECEF prograde
     public Vector3 guidance { get; set; } = Vector3.Zero;
     public bool SetupFlag { get; set; } = false;
 
-    public void step(Simulator sim, UPFGTarget target)
+    public void step(Simulator sim, UPFGTarget target, GravityTurnModeConfig config)
     {
 
         if (!SetupFlag)
         {
-            // this.pitchAngle = pitchAngle;
-            // this.pitchTime = pitchTime;
+            pitchAngle = Utils.DegToRad(config.PitchAngle);
+            pitchTime = config.PitchTime;
             heading = Utils.CalcLaunchAzimuthRotating(sim, target);
             SetupFlag = true;
+
+            Console.WriteLine("Gravity Turn :: Pitch Angle: " + pitchAngle + " Pitch Time: " + pitchTime + " Heading: " + heading);
         }
 
         if (guidanceMode == 0)

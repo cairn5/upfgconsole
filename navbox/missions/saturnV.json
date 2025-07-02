@@ -2,11 +2,11 @@
   "Orbit": {
     "mode": 1,
     "pe": 175,
-    "ap": 250000,
+    "ap": 175,
     "inc": 56.5
   },
   "Simulator": {
-    "speed": 30,
+    "speed": 50,
     "dtsim": 0.2,
     "startLat" : 28.5,
     "startLong" : -70,
@@ -14,7 +14,7 @@
     "airVel" : 2400,
     "airFpa" : 55,
     "altitude" : 45,
-    "heading" : 90,
+    "heading" : 45,
     "historylength": 700
   },
   "Guidance": {
@@ -32,14 +32,17 @@
         "Ascent": {
           "type": "GravityTurnMode", 
           "config": {
-            "AltitudeThreshold": 30000.0
+            "AltitudeThreshold": 30000.0,
+            "PitchAngle": 2.3,
+            "PitchTime": 12.2
           }
         },
         "OrbitInsertion": {
           "type": "UpfgMode",
           "config": {
-            "ModeKey": 2,
-            "ConvergenceThreshold": 5.0
+            "ModeKey": 1,
+            "CutoffTime": 5.0
+            
           }
         },
         "FinalBurn": {

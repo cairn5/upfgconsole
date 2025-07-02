@@ -22,6 +22,7 @@ public class Simulator
     public float dt { get; private set; }
     public float dtguidance { get; set; }
     public double simspeed { get; private set; }
+    public double throttle { get; private set; }
     public Vector3 ThrustVector { get; private set; }
     public List<SimState> History { get; set; }
     public double historylen { get; set; }
